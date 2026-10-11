@@ -1,0 +1,38 @@
+# Render service manifest for aw-abetConnect. Import via Render → New → Blueprint
+# (host this file publicly) or apply from the dashboard.
+#
+# All envVars have `sync: false` — values are not committed here. Set
+# them in your Render service's Environment tab, or in a shared env group
+# if multiple services need the same secret.
+services:
+  - type: web
+    name: aw-abetConnect
+    runtime: node
+    plan: free
+    region: singapore
+    healthCheckPath: /
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false       # this service's own public origin, no trailing slash
+      - key: DATABASE_URL
+        sync: false       # Postgres connection string (dev.db default is dev-only)
+      - key: STRIPE_SECRET_KEY
+        sync: false       # optional; billing 500s without it
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_SEAT_MONTHLY
+        sync: false
+      - key: STRIPE_PRICE_SEAT_ANNUAL
+        sync: false
+      - key: LLM_API_KEY
+        sync: false       # optional; falls back to the deterministic engine
+      - key: LLM_BASE_URL
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: LLM_TIMEOUT_MS
+        sync: false
