@@ -1,0 +1,44 @@
+# abetConnect demo stack: one container, SQLite on a persistent volume.
+#
+# Why SQLite here and Postgres in production (see README "Scaling up"):
+# the committed migration history is SQLite-dialect, so `migrate deploy`
+# applies cleanly on every start AND every restart. The Postgres path needs
+# a fresh baseline first — correct for a real deploy, wrong for a demo box
+# that must survive `docker restart` without a DBA on call.
+#
+#   docker compose up --build -d
+#   docker compose exec app npx tsx prisma/seed.ts   # demo workspace (idempotent)
+#   curl localhost:3101/api/health
+#
+# Backup + restore (drill-proven 2026-09-25 — backup extracts to a clean
+# volume with a queryable dev.db; restore drill must not touch abdata live):
+#   docker run --rm -v abetconnect_abdata:/data -v /tmp:/backup alpine \
+#     tar czf /backup/abdata-$(date +%F).tar.gz -C / data
+#   docker volume create abdata-restore && docker run --rm \
+#     -v abdata-restore:/data -v /tmp:/backup alpine \
+#     tar xzf /backup/abdata-<date>.tar.gz -C /
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: file:/data/dev.db
+      # Next.js standalone server.js binds process.env.HOSTNAME, and Docker
+      # sets HOSTNAME to the container ID (resolving to the container IP).
+      # That left 127.0.0.1:3000 refusing connections inside the container,
+      # which failed the HEALTHCHECK forever. Bind all interfaces instead.
+      HOSTNAME: 0.0.0.0
+    volumes:
+      - abdata:/data
+    ports:
+      - "3101:3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health | grep -q '\"ok\":true'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  abdata:

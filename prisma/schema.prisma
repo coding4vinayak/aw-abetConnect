@@ -1,0 +1,399 @@
+// abetConnect — one inbox, ranked by who is closest to buying.
+//
+// SQLite is used so the product runs with zero infrastructure. The models are
+// Postgres-compatible — verified by pushing this schema to PostgreSQL 18 and
+// running the app against it (queue reads, scoring ingest). Two things do NOT
+// carry over automatically, so the switch is three steps, not one:
+//
+//   1. Set `provider = "sqlite"` below and point DATABASE_URL at Postgres.
+//   2. Start a FRESH migration history on Postgres (`prisma migrate dev`).
+//      The committed migrations are SQLite-dialect (PRAGMA table rebuilds) and
+//      `migrate deploy` refuses them on Postgres with P3019. Do not replay them.
+//   3. Regenerate the client (`prisma generate`) — the query engine is
+//      provider-specific — then seed and run as usual.
+
+generator client {
+  provider = "prisma-client-js"
+  // Generated to the default node_modules location on purpose. A custom output
+  // inside src/ makes Next.js trace the entire project into the server bundle,
+  // because the generated client does dynamic filesystem work that the bundler
+  // cannot follow. Keeping it in node_modules lets it be marked external.
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/// A tenant. Everything is scoped to a workspace so this stays multi-tenant
+/// from day one, which is what makes it sellable standalone AND bundleable.
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  /// Free-text description of what the workspace sells. Fed to the
+  /// intelligence layer as context so scoring is tuned per customer.
+  sellsWhat String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  apiKeys     ApiKey[]
+  contacts    Contact[]
+  threads     Thread[]
+  webhooks    WebhookEndpoint[]
+  memberships Membership[]
+  sessions    Session[]
+  invites     Invite[]
+  subscription Subscription?
+}
+
+/// Billing: one active subscription per workspace, managed by Stripe.
+model Subscription {
+  id                 String   @id @default(cuid())
+  workspaceId        String   @unique
+  stripeCustomerId   String   @unique
+  stripeSubscriptionId String? @unique
+  stripePriceId      String?
+  stripeCurrentPeriodEnd DateTime?
+  status             String   @default("incomplete") // incomplete | trialing | active | past_due | canceled | unpaid
+  cancelAtPeriodEnd  Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([stripeCustomerId])
+  @@index([stripeSubscriptionId])
+}
+
+/// Hashed API keys. The plaintext key is shown once at creation and never stored.
+model ApiKey {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  /// sha256 of the full key. Lookup is by hash, never by plaintext.
+  hashedKey   String    @unique
+  /// First characters of the key, safe to display in a UI.
+  prefix      String
+  /// "SECRET" may call every endpoint. "PUBLISHABLE" (abc_pub_) is the one that is
+  /// safe to put inside browser code: it can only post a web-form message into its
+  /// own workspace, never read anything, never send outbound, and it is throttled.
+  /// The distinction is not a hint in a comment — lib/auth.ts refuses a publishable
+  /// key on every other endpoint.
+  kind           String   @default("SECRET")
+  /// Origins allowed to use a publishable key, comma-separated:
+  /// "https://abetworks.in". Empty means no browser may use it at all.
+  allowedOrigins String   @default("")
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+/// A person, deduplicated across channels. The same human emailing you and
+/// then messaging on WhatsApp is one contact, which is the whole point of
+/// combining channels.
+model Contact {
+  id          String  @id @default(cuid())
+  workspaceId String
+  name        String?
+  email       String?
+  phone       String?
+  company     String?
+  /// Job title, when we can infer it from a signature or profile.
+  title       String?
+  /// Inferred seniority, used as an authority signal in scoring.
+  seniority   String? // IC | MANAGER | DIRECTOR | VP | EXEC | UNKNOWN
+  avatarUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  threads   Thread[]
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId, phone])
+}
+
+/// A conversation. One thread can hold messages from multiple channels — the
+/// unified view. Scores live here because you triage conversations, not
+/// individual messages.
+model Thread {
+  id          String @id @default(cuid())
+  workspaceId String
+  contactId   String
+
+  subject String?
+  /// Channel the conversation started on.
+  channel String // EMAIL | WHATSAPP | SMS | SLACK | LINKEDIN | WEBFORM
+  /// Every channel this thread has seen, comma separated. Cross-channel
+  /// conversations are a buying signal in their own right.
+  channels String @default("")
+
+  /// 0-100. How close this person is to buying.
+  score  Int    @default(0)
+  /// Coarse bucket derived from score, used for the queue tabs.
+  bucket String @default("NURTURE") // HOT | WARM | NURTURE | NOISE
+  /// One-line, human-readable reason for the score. Never show a number
+  /// without a reason.
+  scoreReason String?
+  /// Dominant detected intent, drives which reply template is used.
+  intent      String? // PRICING | DEMO | RENEWAL | SUPPORT | CHURN_RISK | INTRO | NOISE
+  /// Model/engine that produced the current score, for auditability.
+  scoredBy    String?
+  scoredAt    DateTime?
+
+  status     String    @default("OPEN") // OPEN | SNOOZED | WON | LOST | CLOSED
+  snoozedUntil DateTime?
+
+  /// Denormalized for cheap sorting of the queue.
+  lastMessageAt      DateTime  @default(now())
+  lastInboundAt      DateTime?
+  lastOutboundAt     DateTime?
+  /// Whether the ball is in our court. Unanswered inbound is what triage is for.
+  awaitingReply      Boolean   @default(true)
+  /// Monetary value mentioned in the conversation, in minor units.
+  estimatedValueCents Int?
+  currency           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  signals   Signal[]
+  drafts    Draft[]
+
+  @@index([workspaceId, status, score])
+  @@index([workspaceId, bucket])
+  @@index([contactId])
+}
+
+model Message {
+  id       String @id @default(cuid())
+  threadId String
+
+  direction String // INBOUND | OUTBOUND
+  channel   String
+  body      String
+  /// Provider-side id, used to make ingest idempotent.
+  externalId String?
+  /// Raw provider payload, kept so adapters can be improved retroactively.
+  raw        String?
+  sentAt     DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, externalId])
+  @@index([threadId, sentAt])
+}
+
+/// An individual piece of evidence behind a score. This is what makes the
+/// number trustworthy — the rep can see exactly why a thread is at the top.
+model Signal {
+  id       String @id @default(cuid())
+  threadId String
+
+  kind   String // BUYING_INTENT | URGENCY | AUTHORITY | DEAL_SIZE | ENGAGEMENT | CHURN_RISK | NOISE | MULTI_CHANNEL
+  label  String
+  /// Points this signal contributed to the score. Can be negative.
+  weight Int
+  /// The exact text that triggered it, so the rep can verify.
+  evidence  String?
+  createdAt DateTime @default(now())
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+}
+
+/// A suggested reply. Kept separate from Message because a draft is not a
+/// sent thing, and reps need to edit before sending.
+model Draft {
+  id       String @id @default(cuid())
+  threadId String
+
+  body        String
+  /// Which engine wrote it.
+  generatedBy String
+  /// Intent the draft was written for.
+  intent      String?
+  status      String   @default("SUGGESTED") // SUGGESTED | EDITED | SENT | DISCARDED
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+}
+
+/// Outbound webhooks. This is the "combinable" half of the product: triage
+/// results get pushed into whatever CRM or suite this sits next to.
+model WebhookEndpoint {
+  id          String  @id @default(cuid())
+  workspaceId String
+  url         String
+  /// Comma separated event names, empty means all.
+  events      String  @default("")
+  secret      String
+  active      Boolean @default(true)
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+/// A person who can sign in. Signup creates the user, their workspace, the
+/// membership that links the two, and a session — in that order, in one
+/// transaction, so a half-built account can never exist.
+model User {
+  id String @id @default(cuid())
+  /// Stored lowercased. The unique index is what makes signup idempotent at the
+  /// database level rather than only in application code.
+  email String @unique
+  name  String?
+  /// scrypt digest, never a plaintext password. See `src/lib/password.ts` for
+  /// why scrypt is used instead of bcrypt or argon2.
+  passwordHash String
+  /// Set to true when the user clicks the verification link. Sign-in refuses
+  /// unverified emails to prevent account takeover via typo-squatted addresses.
+  emailVerified Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  sessions    Session[]
+  invitesCreated Invite[] @relation("InviteCreatedBy")
+  emailVerificationToken EmailVerificationToken?
+  passwordResetTokens PasswordResetToken[]
+}
+
+/// Which workspaces a user can open, and as what. Separate from User so a
+/// person can belong to more than one team without a second account, which is
+/// what an agency or an internal tools team eventually needs.
+model Membership {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  /// OWNER | ADMIN | MEMBER. Only OWNER is issued at signup today.
+  role        String   @default("OWNER")
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+/// An outstanding invitation into a workspace. Separate from Membership because
+/// the subject of an invitation is an email address that may not have an account
+/// yet; writing a membership for it would mean inventing a user that nobody ever
+/// accepts. Accepting creates the membership, or the account and the membership.
+///
+/// Only the sha256 of the token is stored, on the same rule as sessions and API
+/// keys: the accept URL is a bearer credential, so a database dump must not hand
+/// over a set of working invitations into other people's workspaces.
+model Invite {
+  id          String    @id @default(cuid())
+  workspaceId String
+  /// Lowercased. An invite is addressed to one address, and an account that is
+  /// not that address cannot redeem it.
+  email       String
+  /// ADMIN | MEMBER. OWNER is never issuable here — see `INVITABLE_ROLES`.
+  role        String
+  tokenHash   String    @unique
+  createdById String
+  /// Links age out. An invitation left open on a screen, in a shared chat
+  /// window or in a deleted browser is a standing door into a workspace, and
+  /// nothing about it gets withdrawn when the sender changes their mind.
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User      @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@index([email])
+}
+
+
+/// A signed-in browser. Only the sha256 of the session token is stored, for the
+/// same reason API keys are hashed: a database leak must not hand over live
+/// credentials. The workspace is denormalised onto the session so one person
+/// can hold sessions for several teams at once.
+model Session {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  tokenHash   String   @unique
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// Guessing counters for the two forms that run without a session.
+///
+/// Deliberately keyed by client address rather than by account, and stored here
+/// rather than in process memory. Keyed by address because a limit counted per
+/// email would let anyone lock a customer out of their own account by failing
+/// against that email all afternoon. Stored in the database because a deploy
+/// restarts the process, and an attacker who can lift a lockout by waiting for a
+/// release never had anything stopped in the first place.
+///
+/// No relation to User: an address gets a row whether or not the email it typed
+/// belongs to anybody, which is exactly why this cannot enumerate accounts.
+model AuthThrottle {
+  /// "<purpose>:<client address>", e.g. "signin:203.0.113.7".
+  key         String    @id
+  /// Events counted inside the current window — failed guesses, or accounts
+  /// created, depending on which form took the tally.
+  count       Int       @default(0)
+  windowStart DateTime  @default(now())
+  lockedUntil DateTime?
+
+  @@index([windowStart])
+}
+
+/// One-time token sent to a user's email to verify ownership.
+/// Created at signup, consumed when the link is clicked, expired after 24h.
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+
+/// One-time token sent to a user's email to reset a forgotten password.
+/// Created on request, consumed when the link is used, expired after 1h.
+/// Rate-limited per address (not per account) to prevent enumeration.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+}
+

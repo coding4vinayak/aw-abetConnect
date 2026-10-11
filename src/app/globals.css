@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+/**
+ * A triage queue is a dense, high-frequency screen. The palette is dark and
+ * low-contrast by default so the only bright things on screen are the signals
+ * that need attention — score, bucket and unanswered state.
+ */
+:root {
+  --background: #08090b;
+  --surface: #0e1013;
+  --surface-raised: #14171c;
+  --border: #22262e;
+  --foreground: #e8eaed;
+  --muted: #8b929e;
+  --muted-dim: #5d646f;
+
+  --hot: #ff5c46;
+  --warm: #ffb020;
+  --nurture: #4a9eff;
+  --noise: #5d646f;
+  --positive: #35c46b;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-line: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-dim: var(--muted-dim);
+  --color-hot: var(--hot);
+  --color-warm: var(--warm);
+  --color-nurture: var(--nurture);
+  --color-noise: var(--noise);
+  --color-positive: var(--positive);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbars in a dense list should be visible but not loud. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #333944;
+  background-clip: content-box;
+}
