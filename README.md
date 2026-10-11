@@ -1,5 +1,8 @@
 # abetConnect
 
+![CI](https://github.com/coding4vinayak/aw-abetConnect/actions/workflows/ci.yml/badge.svg)
+
+
 One inbox for every channel, ranked by who is closest to buying.
 
 Email, WhatsApp, SMS, Slack, LinkedIn and web forms land in a single queue. Each
