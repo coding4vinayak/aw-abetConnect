@@ -237,7 +237,9 @@ const schemas: Record<string, Schema> = {
     description:
       "What abetConnect POSTs to your endpoint. Verify with HMAC-SHA256 over " +
       "`${x-abetconnect-timestamp}.${rawBody}`, compared against x-abetconnect-signature, " +
-      "and reject deliveries whose timestamp is older than you are willing to replay.",
+      "and reject deliveries whose timestamp is older than you are willing to replay. " +
+      "The same delivery also carries `x-webhook-signature: sha256=<hex HMAC(secret, rawBody)>` — " +
+      "the body-only generic spelling a nuCRM plugin webhook verifies natively.",
     properties: {
       id: {
         type: "string",

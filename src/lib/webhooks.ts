@@ -75,6 +75,26 @@ export function signPayload(secret: string, body: string, timestamp: number): st
 }
 
 /**
+ * The same key signing only the body — the generic spelling, sent alongside
+ * the Stripe-style one on every delivery.
+ *
+ * `sha256=<hex HMAC(secret, rawBody)>` is GitHub's convention and, more to the
+ * point here, exactly what an inbound nuCRM plugin webhook verifies. Pointing
+ * one at `/api/tenant/plugins/webhook/{id}` with this endpoint's secret accepts
+ * abetConnect deliveries with no adapter between the products. It is a second
+ * header on the same request, not a replacement: the `x-abetconnect-signature`
+ * above stays byte-identical for receivers that already verify it.
+ *
+ * The generic digest has no timestamp inside it. nuCRM checks freshness only
+ * when a delivery carries `x-webhook-timestamp`, and this one does not — which
+ * is the right answer for a fire-and-forget sender whose receiver should apply
+ * its own replay window (or verify the Stripe-style pair instead).
+ */
+export function signBody(secret: string, body: string): string {
+  return createHmac("sha256", secret).update(body).digest("hex");
+}
+
+/**
  * Deliver an event to every subscribed endpoint.
  *
  * Deliberately fire-and-forget with a short timeout: a customer's broken webhook
@@ -150,6 +170,9 @@ export async function dispatch(
             "x-abetconnect-event-id": id,
             "x-abetconnect-timestamp": String(timestamp),
             "x-abetconnect-signature": signPayload(endpoint.secret, body, timestamp),
+            // The body-only digest under the generic name — what a nuCRM
+            // plugin webhook verifies natively. See signBody.
+            "x-webhook-signature": `sha256=${signBody(endpoint.secret, body)}`,
           },
           body,
           signal: controller.signal,
