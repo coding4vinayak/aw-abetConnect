@@ -24,11 +24,11 @@
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
-    "@sentry/nextjs": "^11.0.0",
-    "next": "16.2.12",
+    "@sentry/nextjs": "^11.5.0",
+    "next": "16.4.0",
     "prisma": "^6.19.3",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "stripe": "^22.6.2"
   },
   "devDependencies": {
@@ -37,9 +37,9 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.12",
+    "eslint-config-next": "16.4.0",
     "tailwindcss": "^4",
-    "tsx": "^4.23.1",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }
