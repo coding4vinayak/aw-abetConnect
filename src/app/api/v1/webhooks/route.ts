@@ -34,7 +34,9 @@ export async function GET(request: Request) {
  *
  * Subscribe an endpoint. The signing secret is returned once, here, and never
  * again — verify deliveries with HMAC-SHA256 over `{timestamp}.{body}`, both sent
- * as headers (`x-abetconnect-timestamp`, `x-abetconnect-signature`).
+ * as headers (`x-abetconnect-timestamp`, `x-abetconnect-signature`). Deliveries
+ * also carry `x-webhook-signature: sha256=<hex HMAC(secret, rawBody)>`, the
+ * generic spelling a nuCRM plugin webhook verifies natively.
  */
 export async function POST(request: Request) {
   try {

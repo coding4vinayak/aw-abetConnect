@@ -236,6 +236,14 @@ Pass the body as raw bytes. Re-serialising it before verification fails on the
 first key whose ordering or escaping differs, and that reads like a broken
 signature rather than a changed string.
 
+Every delivery also carries `x-webhook-signature: sha256=<hex>` — the same key
+signed over the raw body alone. That is GitHub's spelling, and what an inbound
+nuCRM plugin webhook (`/api/tenant/plugins/webhook/{id}`) verifies natively, so
+a nuCRM endpoint can subscribe here with this secret and no adapter between the
+products. The body-only digest has no timestamp inside it; receivers that want
+the signed-string replay window should keep verifying the `x-abetconnect-*`
+pair above.
+
 **abetConnect never sends messages itself.** `reply.sent` is where your existing
 provider delivers. Owning delivery would mean owning deliverability, compliance
 and inbox reputation, which is a different product.
