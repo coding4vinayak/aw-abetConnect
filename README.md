@@ -17,7 +17,9 @@ it also works as the triage layer inside a larger stack.
 
 ```bash
 npm install
-npx prisma migrate dev      # creates the SQLite database
+cp .env.example .env        # DATABASE_URL points at the compose Postgres
+docker compose up -d        # local Postgres 16
+npx prisma migrate deploy   # applies the committed migrations
 npm run seed                # loads a realistic multi-channel inbox
 npm run dev                 # http://localhost:3000
 ```

@@ -11,10 +11,12 @@
  * customer's data, and not evidence anybody trusts. Reviewing that guard meant
  * reading code and hoping.
  *
- * This script makes the behaviour observable. It builds a throwaway database from
- * the committed migrations, mints an owner, an admin and a member, and drives the
- * invitation flow and the role rules against it. No hand-edited rows, no running
- * server, no credentials, and nothing left behind afterwards.
+ * This script makes the behaviour observable. It builds a throwaway database on
+ * the configured Postgres from the committed migrations, mints an owner, an admin
+ * and a member, and drives the invitation flow and the role rules against it. No
+ * hand-edited rows, no running server, no credentials, and nothing left behind
+ * afterwards. Needs a reachable Postgres: docker compose locally, the service
+ * container in CI.
  *
  * WHAT IT DOES NOT COVER
  *
@@ -28,10 +30,10 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Pool } from "pg";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
@@ -80,12 +82,23 @@ function accepts(label: string, result: { ok: boolean; error?: string }): void {
   }
 }
 
-const tempDir = mkdtempSync(path.join(tmpdir(), "abet-access-"));
-const dbFile = path.join(tempDir, "check.db");
+const baseUrl =
+  process.env.DATABASE_URL ?? "postgresql://abetconnect:abetconnect@localhost:5432/abetconnect";
+const scratchName = `check_invites_${process.pid}_${Math.random().toString(36).slice(2, 8)}`;
 
-// An absolute file: URL, because prisma resolves a relative file: path against the
-// schema directory rather than the working directory of whoever ran this.
-process.env.DATABASE_URL = `file:${dbFile}`;
+// A per-run database on the configured server, so parallel or crashed runs never
+// collide and the drop at the end is the whole cleanup. CREATE DATABASE cannot run
+// inside a transaction, which is why this is a plain pool and not the app client.
+const server = new Pool({ connectionString: baseUrl });
+await server.query(`CREATE DATABASE "${scratchName}"`);
+
+const scratchUrl = (() => {
+  const parsed = new URL(baseUrl);
+  parsed.pathname = `/${scratchName}`;
+  parsed.searchParams.delete("schema");
+  return parsed.toString();
+})();
+process.env.DATABASE_URL = scratchUrl;
 
 // Build the schema from the committed migration history rather than db push, so the
 // thing under test is the schema a deploy would create.
@@ -268,10 +281,10 @@ try {
   );
   eq("hashing is what the row stores", stored?.tokenHash, hashInviteToken(issued.token));
 
-  // The file, not the model: the claim is that a database dump contains nothing
+  // The rows, not the model: the claim is that a database dump contains nothing
   // usable, so a leaked Invite table is not a list of working links.
-  const dump = readFileSync(dbFile, "latin1");
-  ok("no plaintext token anywhere in the database file", !dump.includes(issued.token));
+  const dump = JSON.stringify(await db.invite.findMany());
+  ok("no plaintext token anywhere in the invitation rows", !dump.includes(issued.token));
 
   // Inviting the same address again rotates the link instead of leaving two live
   // ones, because the old plaintext cannot be recovered to be re-sent.
@@ -668,8 +681,22 @@ try {
   }
 }
 
-await db.$disconnect();
-rmSync(tempDir, { recursive: true, force: true });
+try {
+  await db.$disconnect();
+} catch {
+  // Never connected — the failure was reported above.
+}
+try {
+  // WITH (FORCE) terminates any connection the run left behind (PostgreSQL 13+).
+  await server.query(`DROP DATABASE IF EXISTS "${scratchName}" WITH (FORCE)`);
+} catch {
+  // The server was never reachable — there is nothing to drop.
+}
+try {
+  await server.end();
+} catch {
+  // Nothing left to close.
+}
 
 console.log(`\n================================`);
 console.log(`  ${passed} passed, ${failures.length} failed`);

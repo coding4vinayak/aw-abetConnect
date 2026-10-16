@@ -1,18 +1,11 @@
 // abetConnect — one inbox, ranked by who is closest to buying.
 //
-// SQLite is used so the product runs with zero infrastructure. The models are
-// Postgres-compatible — verified by pushing this schema to PostgreSQL 18 and
-// running the app against it (queue reads, scoring ingest). Two things do NOT
-// carry over automatically, so the switch is three steps, not one:
+// Postgres in every environment: docker-compose.yml runs one locally, a
+// managed instance serves production. Runtime adapter in `src/lib/db.ts`,
+// CLI datasource in `prisma.config.ts`; `npm run db:deploy` applies migrations.
 //
-//   1. Change `provider` below to "postgresql", swap the better-sqlite3 adapter
-//      in `src/lib/db.ts` for @prisma/adapter-pg, and point DATABASE_URL (read
-//      in `prisma.config.ts`) at Postgres.
-//   2. Start a FRESH migration history on Postgres (`prisma migrate dev`).
-//      The committed migrations are SQLite-dialect (PRAGMA table rebuilds) and
-//      `migrate deploy` refuses them on Postgres with P3019. Do not replay them.
-//   3. Regenerate the client (`prisma generate`) — the query engine is
-//      provider-specific — then seed and run as usual.
+// The models were pre-verified against PostgreSQL 18 (queue reads, scoring
+// ingest) before this switch landed.
 
 generator client {
   provider = "prisma-client"
@@ -24,7 +17,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 /// A tenant. Everything is scoped to a workspace so this stays multi-tenant
