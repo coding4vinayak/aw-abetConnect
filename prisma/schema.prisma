@@ -5,7 +5,9 @@
 // running the app against it (queue reads, scoring ingest). Two things do NOT
 // carry over automatically, so the switch is three steps, not one:
 //
-//   1. Set `provider = "sqlite"` below and point DATABASE_URL at Postgres.
+//   1. Change `provider` below to "postgresql", swap the better-sqlite3 adapter
+//      in `src/lib/db.ts` for @prisma/adapter-pg, and point DATABASE_URL (read
+//      in `prisma.config.ts`) at Postgres.
 //   2. Start a FRESH migration history on Postgres (`prisma migrate dev`).
 //      The committed migrations are SQLite-dialect (PRAGMA table rebuilds) and
 //      `migrate deploy` refuses them on Postgres with P3019. Do not replay them.
@@ -13,16 +15,16 @@
 //      provider-specific — then seed and run as usual.
 
 generator client {
-  provider = "prisma-client-js"
-  // Generated to the default node_modules location on purpose. A custom output
-  // inside src/ makes Next.js trace the entire project into the server bundle,
-  // because the generated client does dynamic filesystem work that the bundler
-  // cannot follow. Keeping it in node_modules lets it be marked external.
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  // Prisma 7 removed the node_modules default: the client is emitted as
+  // TypeScript inside the project now. src/generated is gitignored and
+  // eslint-ignored, and the driver adapter is marked external for the server
+  // build in next.config.ts.
 }
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 /// A tenant. Everything is scoped to a workspace so this stays multi-tenant
