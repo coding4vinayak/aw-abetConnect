@@ -12,6 +12,7 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "src/generated/**",
   ]),
   // Underscore-prefixed parameters are the codebase's way of saying "this
   // position is required by a signature I do not control" — React's

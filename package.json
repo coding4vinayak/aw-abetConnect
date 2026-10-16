@@ -23,10 +23,11 @@
     "seed": "tsx --env-file=.env prisma/seed.ts"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.3",
+    "@prisma/adapter-better-sqlite3": "^7.10.1",
+    "@prisma/client": "^7.10.1",
     "@sentry/nextjs": "^11.5.0",
     "next": "16.4.0",
-    "prisma": "^6.19.3",
+    "prisma": "^7.10.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "stripe": "^22.6.2"
