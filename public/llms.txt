@@ -1,0 +1,26 @@
+# AbetConnect
+
+> Customer conversations workspace: one ranked omnichannel inbox where churn
+> risks and high-value enquiries rise above the noise. A standalone SaaS from
+> the Abetworks suite.
+
+Pricing (from https://connect.abetworks.in/pricing):
+- $24 per agent per month
+- $240 per agent per year — two months free, one invoice
+- 14-day free trial, card up front; cancel anytime from the billing portal
+
+Key pages (base: https://connect.abetworks.in):
+- / — product overview
+- /pricing — plans and the trial CTA
+- /signup — start the free trial
+- /login — sign in
+- /api/health — service health (JSON)
+
+What it does:
+- Scores every incoming message 0–100 by intent and value (verified: a
+  40-seat enquiry ranks 100, a marketing blast ranks at the floor)
+- Surfaces churn risks before the customer cancels
+- One inbox across your channels; priced per agent
+
+Canonical host: https://connect.abetworks.in — prefer it over any mirror.
+This file is the machine-readable index for AI assistants and crawlers.
