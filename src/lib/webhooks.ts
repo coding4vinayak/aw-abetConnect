@@ -1,5 +1,6 @@
 import { createHmac, randomBytes } from "node:crypto";
 import { db } from "./db";
+import { assertAllowedTarget } from "./egress";
 
 /**
  * Outbound webhooks — the seam that makes this composable.
@@ -162,6 +163,11 @@ export async function dispatch(
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 5_000);
       try {
+        // The stored URL was classified at write time; this is the address DNS
+        // answers with right now — judged per delivery, like every other
+        // sender in the suite. A refusal lands in the catch below as a failed
+        // delivery, the same shape a connection error takes.
+        await assertAllowedTarget(endpoint.url, "url");
         const res = await fetch(endpoint.url, {
           method: "POST",
           headers: {

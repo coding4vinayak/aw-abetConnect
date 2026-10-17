@@ -10,6 +10,8 @@
 // of silently invalidating every receiver that already verifies deliveries.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { signBody, signPayload, subscribes, WEBHOOK_EVENTS } from "../../src/lib/webhooks";
 
 const SECRET = "whsec_test-key";
@@ -64,5 +66,30 @@ describe("subscribes", () => {
   it("matches a name in a comma list regardless of spacing", () => {
     assert.equal(subscribes("thread.created, reply.sent", "reply.sent"), true);
     assert.equal(subscribes("thread.created", "reply.sent"), false);
+  });
+});
+
+// The egress contract is two-sided: `classifyTarget` refuses an internal
+// destination when the subscription is written, `assertAllowedTarget`
+// re-judges the address DNS answers with immediately above the delivery
+// fetch. A source guard, not a runtime test — the failure mode is a removed
+// line that still typechecks, and only the source says so.
+describe("egress guards", () => {
+  const at = (rel: string) => readFileSync(join(process.cwd(), rel), "utf8");
+
+  it("classifies the destination on both write paths", () => {
+    const post = at("src/app/api/v1/webhooks/route.ts");
+    const patch = at("src/app/api/v1/webhooks/[id]/route.ts");
+    assert.match(post, /classifyTarget\(url, "url"\)/, "POST must classify the destination");
+    assert.match(patch, /classifyTarget\(url, "url"\)/, "PATCH must classify a repointed destination");
+  });
+
+  it("asserts egress immediately above the delivery fetch", () => {
+    const sender = at("src/lib/webhooks.ts");
+    assert.match(
+      sender,
+      /await assertAllowedTarget\(endpoint\.url, "url"\);/,
+      "delivery must re-judge the address DNS answers with now",
+    );
   });
 });
