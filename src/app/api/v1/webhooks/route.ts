@@ -10,6 +10,7 @@ import {
   webhookEventsProblem,
   webhookUrlProblem,
 } from "@/lib/webhooks";
+import { classifyTarget } from "@/lib/egress";
 
 /** GET /api/v1/webhooks — list endpoints. Secrets are never returned in full. */
 export async function GET(request: Request) {
@@ -54,6 +55,13 @@ export async function POST(request: Request) {
     if (eventsProblem) {
       return apiError("invalid_request", 422, eventsProblem, { param: "events" });
     }
+
+    // The destination is refused here when it names an internal address — the
+    // same rule `assertAllowedTarget` enforces immediately above the delivery
+    // fetch — so an endpoint that could never deliver is not stored. The
+    // documented local override (ABET_ALLOW_PRIVATE_TARGETS=1) still applies.
+    const target = await classifyTarget(url, "url");
+    if (!target.ok) return apiError("invalid_request", 422, target.reason, { param: "url" });
 
     const secret = generateWebhookSecret();
     const endpoint = await db.webhookEndpoint.create({

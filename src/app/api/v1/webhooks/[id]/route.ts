@@ -8,6 +8,7 @@ import {
   webhookEventsProblem,
   webhookUrlProblem,
 } from "@/lib/webhooks";
+import { classifyTarget } from "@/lib/egress";
 
 /**
  * One lookup, always filtered by workspace.
@@ -66,6 +67,9 @@ export async function PATCH(
       const url = String(body.url).trim();
       const problem = webhookUrlProblem(url);
       if (problem) return apiError("invalid_request", 422, problem, { param: "url" });
+      // Same refusal as POST when the patch repoints the endpoint.
+      const target = await classifyTarget(url, "url");
+      if (!target.ok) return apiError("invalid_request", 422, target.reason, { param: "url" });
       data.url = url;
     }
 
