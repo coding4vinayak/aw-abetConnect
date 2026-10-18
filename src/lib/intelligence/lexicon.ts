@@ -365,6 +365,8 @@ export const CATEGORY_CAPS: Record<SignalKind, number> = {
   ENGAGEMENT: 12,
   MULTI_CHANNEL: 12,
   NOISE: 0, // negative only; never capped
+  BASE: 0, // bookkeeping; never capped
+  ADJUSTMENT: 0, // added after the caps, to close the arithmetic
 };
 
 /** Every real inbound message starts just above zero. */

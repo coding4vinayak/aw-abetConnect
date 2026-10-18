@@ -143,6 +143,17 @@ export class HeuristicEngine implements IntelligenceEngine {
     const haystack = `${message.subject ?? ""}\n${text}`;
 
     const signals: ScoredSignal[] = [];
+
+    // The score has always started from a baseline, but the five points were
+    // added invisibly — a rep summing the panel's rows was short by exactly
+    // five on every thread. It is a row of its own now, so the explanation
+    // carries its own offset.
+    signals.push({
+      kind: "BASE",
+      label: "Every message starts here",
+      weight: BASE_SCORE,
+    });
+
     const intentVotes = new Map<Intent, number>();
 
     const vote = (intent: Intent | undefined, votes = 1) => {
@@ -279,7 +290,7 @@ export class HeuristicEngine implements IntelligenceEngine {
       .filter((s) => s.kind === "NOISE")
       .reduce((sum, s) => sum + s.weight, 0);
 
-    let score = clampScore(BASE_SCORE + total);
+    let score = clampScore(total);
     const intent = this.resolveIntent(intentVotes, context.thread?.previousIntent);
 
     // A hard noise marker (unsubscribe footer, auto-reply, spam) should win
@@ -287,6 +298,22 @@ export class HeuristicEngine implements IntelligenceEngine {
     // lands at the top of a rep's queue, which destroys trust in the ranking.
     const hardNoise = signals.some((s) => s.kind === "NOISE" && s.weight <= -30);
     if (hardNoise) score = Math.min(score, 8);
+
+    // A clamp moved the number, and an explanation that silently disagrees
+    // with the score it explains is worse than no explanation at all: the
+    // difference gets a row of its own, named after the clamp that caused it.
+    if (total !== score) {
+      capped.push({
+        kind: "ADJUSTMENT",
+        label:
+          hardNoise && total > score
+            ? "Hard noise wins outright — the score is clamped"
+            : total > score
+              ? "Capped at the 100-point ceiling"
+              : "Floored at 0 — nothing scores below",
+        weight: score - total,
+      });
+    }
 
     let bucket = bucketForScore(score);
     if (intent === "NOISE" && noisePenalty <= -30) bucket = "NOISE";
@@ -355,7 +382,7 @@ export class HeuristicEngine implements IntelligenceEngine {
    */
   private explain(signals: ScoredSignal[], intent: Intent, bucket: string): string {
     const positives = signals
-      .filter((s) => s.weight > 0)
+      .filter((s) => s.weight > 0 && s.kind !== "BASE" && s.kind !== "ADJUSTMENT")
       .sort((a, b) => b.weight - a.weight)
       .slice(0, 3)
       .map((s) => s.label.toLowerCase());

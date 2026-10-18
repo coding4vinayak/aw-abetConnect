@@ -88,7 +88,7 @@ Signal categories:
 | Churn risk | cancellation, refund, complaint, "switching to" |
 | Noise | unsubscribe footers, auto-replies, recruiters, cold pitches |
 
-Two decisions worth knowing about:
+Three decisions worth knowing about:
 
 **Categories are capped.** A message saying "pricing", "contract" and "invoice"
 is one signal — they want to buy — not three. Without ceilings every good lead
@@ -99,6 +99,12 @@ score exactly.
 **Hard noise wins outright.** A newsletter whose subject line mentions pricing
 would otherwise outrank a real buyer. An unsubscribe footer, auto-reply or spam
 marker clamps the score regardless of what else the message contains.
+
+**The arithmetic is a row, not a promise.** Every score starts from a baseline
+row ("every message starts here", +5), and when the 0–100 bounds or the
+hard-noise clamp move the total, the difference is shown as its own row named
+after the clamp. Add up the rows the panel shows and you land on the score — on
+every thread, including the clamped ones.
 
 Churn risk scores *high*, not low. A customer threatening to cancel is urgent
 revenue, and one answered within the hour is often saved.
@@ -151,7 +157,10 @@ a channel adapter. Adding a channel means adding one adapter and nothing else.
 Ingest is idempotent on the provider's message id (`submissionId` or `id` on a web
 form), because providers retry and a replayed message must not re-inflate a score.
 A replay returns the original thread with `duplicate: true` and HTTP 200 rather
-than a second 201, so a double-submitting form cannot create two leads.
+than a second 201, so a double-submitting form cannot create two leads. That holds
+after the conversation moved on, too: retries land hours later, and a replay
+against a thread that is now won, lost or closed still comes back as that thread
+rather than a second lead.
 
 ### The contract is checkable
 
@@ -312,7 +321,7 @@ tab happens to reload.
 npm run build && bash scripts/smoke.sh
 ```
 
-Boots the production build and checks 154 behaviours end to end: API-key rejection,
+Boots the production build and checks 156 behaviours end to end: API-key rejection,
 queue ordering, scoring and bucketing, deal-size parsing, idempotent replay,
 noise suppression, cross-channel contact merging via a form-encoded Twilio post,
 Slack's `url_verification` handshake and bot-echo suppression, the outbound
@@ -341,7 +350,7 @@ workspace, a member is shown none of the invite or key controls, an admin is ref
 the power to make another admin, and a demoted or removed seat stops working on the
 next request rather than at the next deploy.
 
-That is the wire. Three more checks need no running server and no database of yours:
+That is the wire. Four more checks need no running server and no database of yours:
 
 ```bash
 npm run check
@@ -349,11 +358,12 @@ npm run check
 
 which is `typecheck`, `lint`, and:
 
-- **`test:unit`** runs 37 unit tests over the pure modules with no server and no
+- **`test:unit`** runs 61 unit tests over the pure modules with no server and no
   database: the CORS origin rules, the address/phone/date parsers, the role
   grant matrix, the keyset cursor codec, and the heuristic scorer (a senior
   buyer with budget and a deadline scores HOT, a pricing newsletter scores
-  NOISE, nothing pins past 100).
+  NOISE, nothing pins past 100, and the rows the panel shows add up to the
+  score).
 - **`check:docs`** reads this README against the tree. Every documented endpoint has a
   handler, every handler is documented, every screen is named here, and every
   environment variable the README tells you to set is read by something.
@@ -367,6 +377,10 @@ which is `typecheck`, `lint`, and:
   is the reason the role table above is evidence rather than a description. A
   migration that only works on a machine already holding the data fails here, not in
   front of a customer.
+- **`check:ingest`** builds its own throwaway database the same way and drives the
+  ingest pipeline directly: a provider retry comes back as the original thread even
+  after that thread was won, a genuinely new message still opens a new conversation,
+  and the stored explanation rows add up to the stored score — including a floored one.
 
 ## Putting it somewhere
 

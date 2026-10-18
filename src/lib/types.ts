@@ -45,6 +45,10 @@ export const SIGNAL_KINDS = [
   "MULTI_CHANNEL",
   "CHURN_RISK",
   "NOISE",
+  // Not signals of the message: the score's own bookkeeping, shown so the
+  // rows in the explanation always add up to the score they explain.
+  "BASE",
+  "ADJUSTMENT",
 ] as const;
 export type SignalKind = (typeof SIGNAL_KINDS)[number];
 
