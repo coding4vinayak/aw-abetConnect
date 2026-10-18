@@ -181,34 +181,45 @@ export async function ingestMessage(
   }
 
   const contact = pinned ? pinned.contact : await resolveContact(workspace.id, message);
-  const existing = pinned ?? (await findExistingThread(workspace.id, contact.id, message));
-  const isNewThread = !existing;
 
   // Idempotency: providers retry webhooks, and a replayed message must not
-  // double-count engagement signals or re-inflate the score.
-  if (existing && message.externalId) {
-    const seen = await db.message.findUnique({
-      where: { threadId_externalId: { threadId: existing.id, externalId: message.externalId } },
+  // double-count engagement signals or open a second lead. The lookup is
+  // scoped to the person rather than the resolved thread: retries land hours
+  // after the first attempt, by which time a rep may have won, lost or closed
+  // the conversation — and the replay must still come back with the original
+  // thread rather than start a new one.
+  if (message.externalId) {
+    const seen = await db.message.findFirst({
+      where: {
+        externalId: message.externalId,
+        thread: { workspaceId: workspace.id, contactId: contact.id },
+      },
+      orderBy: { createdAt: "asc" },
+      include: { thread: true },
     });
     if (seen) {
+      const original = seen.thread;
       return {
-        threadId: existing.id,
+        threadId: original.id,
         messageId: seen.id,
         contactId: contact.id,
         duplicate: true,
         triage: {
-          score: existing.score,
-          bucket: existing.bucket as TriageResult["bucket"],
-          intent: (existing.intent ?? "INTRO") as TriageResult["intent"],
-          reason: existing.scoreReason ?? "",
+          score: original.score,
+          bucket: original.bucket as TriageResult["bucket"],
+          intent: (original.intent ?? "INTRO") as TriageResult["intent"],
+          reason: original.scoreReason ?? "",
           signals: [],
-          engine: existing.scoredBy ?? "cached",
-          estimatedValueCents: existing.estimatedValueCents ?? undefined,
-          currency: existing.currency ?? undefined,
+          engine: original.scoredBy ?? "cached",
+          estimatedValueCents: original.estimatedValueCents ?? undefined,
+          currency: original.currency ?? undefined,
         },
       };
     }
   }
+
+  const existing = pinned ?? (await findExistingThread(workspace.id, contact.id, message));
+  const isNewThread = !existing;
 
   const thread = existing
     ? existing

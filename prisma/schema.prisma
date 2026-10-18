@@ -194,7 +194,7 @@ model Signal {
   id       String @id @default(cuid())
   threadId String
 
-  kind   String // BUYING_INTENT | URGENCY | AUTHORITY | DEAL_SIZE | ENGAGEMENT | CHURN_RISK | NOISE | MULTI_CHANNEL
+  kind   String // BUYING_INTENT | URGENCY | AUTHORITY | DEAL_SIZE | ENGAGEMENT | CHURN_RISK | NOISE | MULTI_CHANNEL | BASE | ADJUSTMENT
   label  String
   /// Points this signal contributed to the score. Can be negative.
   weight Int
