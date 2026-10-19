@@ -547,7 +547,11 @@ const paths: Record<string, Schema> = {
       description:
         "Session-gated (browser buyer, not an API key). Returns the Stripe-hosted " +
         "URL to redirect to. Prices live in Stripe; the workspace is stamped on " +
-        "the subscription metadata so the webhook can credit it.",
+        "the subscription metadata so the webhook can credit it. `priceId` must " +
+        "be one of this product's prices, `returnUrl` must be a page on this " +
+        "site, and a workspace that already has a live subscription is refused " +
+        "in favour of the billing portal — a second checkout would be a second " +
+        "subscription, and a second invoice.",
       requestBody: body(["priceId", "returnUrl"], {
         priceId: stringEnum(["SEAT_MONTHLY", "SEAT_ANNUAL"]),
         returnUrl: { type: "string", format: "uri" },
@@ -557,7 +561,9 @@ const paths: Record<string, Schema> = {
           type: "object",
           properties: { url: { type: "string", format: "uri" } },
         }),
+        400: fails("Unknown price, foreign returnUrl, or a body that is not JSON"),
         401: fails("No session"),
+        409: fails("Already on a live subscription"),
         500: fails("Stripe not configured or unreachable"),
       },
     },
@@ -569,7 +575,9 @@ const paths: Record<string, Schema> = {
       summary: "Open the Stripe Customer Portal",
       description:
         "Session-gated. Plan changes, payment-method updates, and cancellation " +
-        "happen on Stripe's hosted page; the webhook syncs the outcome back.",
+        "happen on Stripe's hosted page; the webhook syncs the outcome back. " +
+        "`returnUrl` must be a page on this site — it is where Stripe sends the " +
+        "buyer straight out of a page that manages their billing.",
       requestBody: body(["returnUrl"], {
         returnUrl: { type: "string", format: "uri" },
       }),
@@ -578,6 +586,7 @@ const paths: Record<string, Schema> = {
           type: "object",
           properties: { url: { type: "string", format: "uri" } },
         }),
+        400: fails("Foreign returnUrl or a body that is not JSON"),
         401: fails("No session"),
         500: fails("No Stripe customer for this workspace"),
       },
