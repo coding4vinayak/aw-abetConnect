@@ -42,7 +42,7 @@ what the product contains.
 | `/verify-email` | Consumes an email verification token, then redirects to `/login` |
 | `/reset-password` | Consumes a password-reset token, lets the user set a new password |
 | `/integrations` | Issue/revoke API keys (secret + publishable) |
-| `/members` | Invite teammates, manage roles (owner/admin/member) |
+| `/members` | Invite teammates, manage roles, see the plan (owner/admin/member) |
 | `/invite/[token]` | Accept an invitation into a workspace |
 | `/pricing` | Public plans: $24/agent/mo, annual, enterprise — no sign-in |
 | `/support` | Contact, SLAs, status, and before-you-write-in answers — no sign-in |
@@ -53,6 +53,13 @@ what the product contains.
 Signup creates three things in one transaction: the user, a private workspace,
 and an OWNER membership linking them. The session cookie that follows is what the
 dashboard and every server action scope themselves to.
+
+Verification follows the mail transport, not a fixed rule: with a provider
+configured, a new address signs up unverified, the link is mailed immediately,
+sign-in refuses until it is clicked, and the queue screen carries a re-send for
+when the first copy is lost. With no provider, signup marks the address verified
+and asks for nothing — demanding a click on a deployment that cannot send would
+lock every new account out of its own product.
 
 Guessing at the login form is limited per address — ten attempts every fifteen
 minutes, after which the form says so and the wait begins. The count is keyed on
@@ -273,7 +280,31 @@ webhook handles `checkout.session.completed`, `customer.subscription.*`, and
 `invoice.payment_failed`, syncing status into the `Subscription` row the app
 reads with `hasActiveSubscription()`.
 
-Setup: create the two prices in the Stripe dashboard, set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_SEAT_MONTHLY`, `STRIPE_PRICE_SEAT_ANNUAL` (see `.env.example`), and forward webhooks locally with `stripe listen --forward-to localhost:3101/api/billing/webhook`. Without keys the app runs normally; only the billing routes 500. Webhook signature verification is covered by `tests/unit/billing.test.ts` (offline, no network).
+It also sends the four billing mails: a receipt when a checkout completes, a
+dunning notice on every failed payment while money is still owed, an all-clear
+when a past-due subscription recovers, and a cancellation confirmation when the
+subscription ends. They are addressed to the workspace owner's own address from
+the membership row — `ensureCustomer` creates the Stripe customer with an empty
+email, so Stripe is never asked for an address it may never have learned. Every
+mail is best-effort *after* the sync commits: a provider outage logs the miss
+instead of failing the webhook, because a retry cannot delay a message whose
+transition is already written away.
+
+`/members` shows the plan state to the signed-in workspace: active with the
+renewal date and a portal button, the dunning warning with the same button when
+a payment fails or runs out, a "payment received" note after checkout, and the
+pricing link while there is no plan.
+
+Setup: create the two prices in the Stripe dashboard, set `STRIPE_SECRET_KEY`,
+`STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_SEAT_MONTHLY`, `STRIPE_PRICE_SEAT_ANNUAL`
+(see `.env.example`), and forward webhooks locally with `stripe listen
+--forward-to localhost:3101/api/billing/webhook`. For mail, set `RESEND_API_KEY`
+(or `EMAIL_WEBHOOK_URL` for any provider that accepts the same
+`{from,to,subject,html,text}` JSON) and `NEXT_PUBLIC_APP_URL` so links point at
+this deployment. Without keys the app runs normally; only the billing routes 500
+and mail is written to the server log. The webhook, the replay/ordering guards
+and the mail rules are covered offline by `tests/unit/billing.test.ts`,
+`billing-replay.test.ts` and `billing-mails.test.ts`.
 
 ## Your team
 
@@ -304,10 +335,12 @@ An invitation is a link, not an account. What makes it safe to send:
 - **Re-inviting rotates the link.** The plaintext is never kept, so an old copy in
   somebody's drafts stops working instead of living next to the new one.
 
-abetConnect **sends no email**. `/members` shows the link once beside a copy button,
+abetConnect **does not email invitations**. `/members` shows the link once beside a copy button,
 and pasting it into a message you already trust is the step left to a human. An
 address with no account yet can still be invited: they sign up, then reopen the link,
-which is still live.
+which is still live. Account and billing mail do go through the mail sender —
+verification links, receipts, dunning, cancellation — but an invitation never
+depends on an inbox.
 
 Changing a seat is the other half of the feature, because an invitation can only ever
 *add* access. An owner may demote an admin or promote a member; an admin may re-role

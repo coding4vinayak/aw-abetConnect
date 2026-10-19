@@ -3,7 +3,9 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import { canEditRole, canManageRoles } from "@/lib/roles";
 import { listPendingInvites } from "@/lib/invites";
+import { SUBSCRIPTION_STATUS_OPEN } from "@/lib/stripe";
 import { InviteForm } from "@/components/invite-form";
+import { ManageBillingButton } from "@/components/manage-billing";
 import { MemberRole } from "@/components/member-role";
 import { PendingInvites } from "@/components/pending-invites";
 
@@ -66,15 +68,85 @@ function roleOptionsFor(actor: string, target: string): Array<{ value: string; l
   return options;
 }
 
-export default async function MembersPage() {
-  const session = await requireSession();
+const isOpen = (status: string) => (SUBSCRIPTION_STATUS_OPEN as readonly string[]).includes(status);
 
-  const [memberships, invites] = await Promise.all([
+/**
+ * Where the plan lives when the buyer is back in the app: card changes,
+ * the renewal date, and — after checkout or the portal — the confirmation
+ * that the round trip worked. The pricing page already refuses a second
+ * checkout for a live subscription; this banner carries the same fact to
+ * the screen the buyer actually works from.
+ */
+function PlanBanner({
+  billing,
+  subscription,
+}: {
+  billing?: string;
+  subscription: { status: string; stripeCurrentPeriodEnd: Date | null } | null;
+}) {
+  const justBack = billing === "success" || billing === "portal";
+  const renews = subscription?.stripeCurrentPeriodEnd
+    ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(subscription.stripeCurrentPeriodEnd)
+    : null;
+
+  if (subscription && isOpen(subscription.status) && (subscription.status === "active" || subscription.status === "trialing")) {
+    const trialing = subscription.status === "trialing";
+    return (
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-[13px] text-green-900">
+        <span>
+          {justBack ? "Payment received — welcome aboard. " : ""}
+          {trialing ? (
+            <>Trial active{renews ? <> — first charge {renews}</> : null}.</>
+          ) : (
+            <>Plan active{renews ? <>, renews {renews}</> : null}.</>
+          )}
+        </span>
+        <ManageBillingButton />
+      </div>
+    );
+  }
+
+  if (subscription && isOpen(subscription.status) && (subscription.status === "past_due" || subscription.status === "unpaid")) {
+    const declined = subscription.status === "past_due";
+    return (
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-[13px] text-amber-900">
+        <span>
+          {declined
+            ? "Your last payment was declined. Updating your card in the portal is the fix — access continues while Stripe retries."
+            : "Your payments have run out. The portal is where the open invoice gets settled — a new subscription would not pay it."}
+        </span>
+        <ManageBillingButton label="Update card" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-raised p-4 text-[13px] text-muted">
+      <span>No plan yet — $24 per agent/month, cancel any time.</span>
+      <Link
+        href="/pricing"
+        className="shrink-0 rounded-md bg-blue-600 px-3 py-1.5 text-[11px] font-semibold text-white transition hover:bg-blue-700"
+      >
+        See pricing
+      </Link>
+    </div>
+  );
+}
+
+export default async function MembersPage({ searchParams }: { searchParams: Promise<{ billing?: string }> }) {
+  const session = await requireSession();
+  const { billing } = await searchParams;
+
+  const [memberships, invites, subscription] = await Promise.all([
     db.membership.findMany({
       where: { workspaceId: session.workspaceId },
       include: { user: { select: { email: true, name: true } } },
     }),
     listPendingInvites(session.workspaceId),
+    db.subscription.findUnique({
+      where: { workspaceId: session.workspaceId },
+      select: { status: true, stripeCurrentPeriodEnd: true },
+    }),
   ]);
 
   const members = memberships.sort(
@@ -124,6 +196,7 @@ export default async function MembersPage() {
             are invited by an owner or an admin, and an invitation names one address and works once,
             so it cannot be forwarded to whoever happens to click it first.
           </p>
+          <PlanBanner billing={billing} subscription={subscription} />
         </div>
 
         <Section
