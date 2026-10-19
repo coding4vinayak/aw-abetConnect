@@ -278,7 +278,7 @@ returns `{ url }` to redirect the buyer to. `portal` takes `{ returnUrl }`
 and returns the Customer Portal URL for plan changes and cancellation. The
 webhook handles `checkout.session.completed`, `customer.subscription.*`, and
 `invoice.payment_failed`, syncing status into the `Subscription` row the app
-reads with `hasActiveSubscription()`.
+reads with `hasActiveSubscription()`. Replays are answered `duplicate` without re-running the handler: every verified delivery is claimed by its event id before it is handled, and the row carries the newest event time it has applied, so a redelivered or late-arriving snapshot cannot re-fire a mail or drag the status backwards.
 
 It also sends the four billing mails: a receipt when a checkout completes, a
 dunning notice on every failed payment while money is still owed, an all-clear
