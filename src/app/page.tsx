@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { signOut } from "./auth-actions";
 import { db } from "@/lib/db";
+import { verificationEnforced } from "@/lib/email";
 import { getEngine } from "@/lib/intelligence";
 import { toThreadSummary } from "@/lib/serialize";
 import { requireSession } from "@/lib/session";
 import { TriageQueue } from "@/components/triage-queue";
+import { VerifyBanner } from "@/components/verify-banner";
 
 // The queue reflects a live inbox, so never serve it from the static cache.
 export const dynamic = "force-dynamic";
@@ -40,8 +42,17 @@ export default async function TriagePage() {
   const session = await requireSession();
   const workspaceId = session.workspaceId;
 
-  const workspace = await db.workspace.findUnique({ where: { id: workspaceId } });
+  const [workspace, viewer] = await Promise.all([
+    db.workspace.findUnique({ where: { id: workspaceId } }),
+    // Only in the world where the click matters: a deployment with no mail
+    // provider never blocks sign-in on verification, so the banner would be
+    // advice nobody can act on.
+    verificationEnforced()
+      ? db.user.findUnique({ where: { id: session.userId }, select: { emailVerified: true } })
+      : Promise.resolve(null),
+  ]);
   if (!workspace) return <EmptyInbox />;
+  const needsVerification = Boolean(viewer && !viewer.emailVerified);
 
   const [threads, bucketCounts] = await Promise.all([
     db.thread.findMany({
@@ -105,6 +116,8 @@ export default async function TriagePage() {
           </form>
         </div>
       </header>
+
+      {needsVerification && <VerifyBanner />}
 
       <div className="min-h-0 flex-1">
         {threads.length === 0 ? (

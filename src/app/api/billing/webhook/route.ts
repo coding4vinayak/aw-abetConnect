@@ -3,24 +3,32 @@ import Stripe from "stripe";
 import { getStripe, verifyWebhook, syncSubscriptionFromStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { claimStripeEvent, finishStripeEvent } from "@/lib/billing-events";
+import { DUNNING_STATUSES, sendCancellation, sendDunning, sendReceipt, sendRecovered } from "@/lib/billing-mails";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Apply a subscription snapshot only if it is not older than the newest one
- * this row has already applied.
+ * this row has already applied — and announce the one transition that deserves
+ * a mail of its own.
  *
  * Stripe delivers in no promised order: a late "trialing" snapshot delivered
  * after the conversion would otherwise drag a paying buyer backwards. Exact
  * redeliveries never reach this point — the event claim in POST answers them.
  * This guards the event that is *late*, not the one that is repeated.
+ *
+ * The previous status is read from the local row *before* the sync overwrites
+ * it — Stripe events do not carry the old state, and a transition you cannot
+ * see is a transition you cannot announce. Returns whether the event was
+ * applied; `false` means a late, already-superseded snapshot, which must not
+ * announce anything either.
  */
-async function syncIfFresh(stripeSub: Stripe.Subscription, eventCreatedAt: number) {
+async function syncAndAnnounce(stripeSub: Stripe.Subscription, eventCreatedAt: number) {
   const workspaceId = stripeSub.metadata.workspaceId as string | undefined;
   const previous = workspaceId
     ? await db.subscription.findUnique({
         where: { workspaceId },
-        select: { lastStripeEventAt: true },
+        select: { status: true, lastStripeEventAt: true },
       })
     : null;
 
@@ -29,10 +37,21 @@ async function syncIfFresh(stripeSub: Stripe.Subscription, eventCreatedAt: numbe
     console.log(
       `[billing] stale subscription event skipped: ${at.toISOString()} < ${previous.lastStripeEventAt.toISOString()}`,
     );
-    return;
+    return false;
   }
 
   await syncSubscriptionFromStripe(stripeSub, at);
+
+  // The one transition abetConnect announces: a past-due subscription that
+  // recovered. Silence here reads as "still broken" and prompts a
+  // cancellation. The sync above has already committed, and `sendRecovered`
+  // swallows its own failures — a mail must never fail a webhook whose work
+  // is done.
+  if (previous && workspaceId && previous.status === "past_due" && stripeSub.status === "active") {
+    await sendRecovered(workspaceId);
+  }
+
+  return true;
 }
 
 export async function POST(request: Request) {
@@ -74,13 +93,21 @@ export async function POST(request: Request) {
       if (session.mode === "subscription" && typeof session.subscription === "string") {
         const sub = await getStripe().subscriptions.retrieve(session.subscription);
         await syncSubscriptionFromStripe(sub);
+        // After the sync, never instead of it: the receipt is best-effort.
+        await sendReceipt(session);
       }
       break;
     }
     case "customer.subscription.created":
-    case "customer.subscription.updated":
+    case "customer.subscription.updated": {
+      await syncAndAnnounce(event.data.object as Stripe.Subscription, event.created);
+      break;
+    }
     case "customer.subscription.deleted": {
-      await syncIfFresh(event.data.object as Stripe.Subscription, event.created);
+      const stripeSub = event.data.object as Stripe.Subscription;
+      const applied = await syncAndAnnounce(stripeSub, event.created);
+      const workspaceId = stripeSub.metadata.workspaceId as string | undefined;
+      if (applied && workspaceId) await sendCancellation(workspaceId);
       break;
     }
     case "invoice.payment_failed": {
@@ -98,6 +125,11 @@ export async function POST(request: Request) {
       if (subId) {
         const stripeSub = await getStripe().subscriptions.retrieve(subId);
         await syncSubscriptionFromStripe(stripeSub);
+        // Only a status that still describes an open problem is dunned: a
+        // fresh retrieve that comes back healthy must not mail a lie.
+        if ((DUNNING_STATUSES as readonly string[]).includes(stripeSub.status)) {
+          await sendDunning(stripeSub);
+        }
       }
       break;
     }

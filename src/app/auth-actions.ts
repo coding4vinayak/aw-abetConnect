@@ -6,6 +6,18 @@ import { db } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { createSession, destroySession } from "@/lib/session";
 import {
+  appBaseUrl,
+  getEmailSender,
+  productName,
+  renderVerificationEmail,
+  verificationEnforced,
+} from "@/lib/email";
+import {
+  VERIFICATION_TOKEN_EXPIRY_HOURS,
+  createEmailVerificationToken,
+  getVerificationUrl,
+} from "@/lib/tokens";
+import {
   MAX_SIGNIN_FAILURES,
   MAX_SIGNUPS,
   clearTally,
@@ -131,7 +143,18 @@ export async function signUp(_previous: AuthState, formData: FormData): Promise<
     // or nothing does.
     created = await db.$transaction(async (tx) => {
       const workspace = await tx.workspace.create({ data: { name: workspaceName, slug } });
-      const user = await tx.user.create({ data: { email, name, passwordHash } });
+      const user = await tx.user.create({
+        data: {
+          email,
+          name,
+          passwordHash,
+          // Pre-verified only when no provider is configured: with mail unable
+          // to arrive, demanding a verification click would lock the account
+          // out of its own product. With a provider, the account starts
+          // unverified and `signIn` enforces the click.
+          emailVerified: !verificationEnforced(),
+        },
+      });
       await tx.membership.create({
         data: { userId: user.id, workspaceId: workspace.id, role: "OWNER" },
       });
@@ -146,6 +169,21 @@ export async function signUp(_previous: AuthState, formData: FormData): Promise<
   // One workspace created, so the address has spent one of its five. Counted
   // only now, so nothing that did not result in a workspace can exhaust it.
   await tally(bucket, MAX_SIGNUPS);
+
+  // Issue the first verification link here, while the token is the only way
+  // in. A provider outage must not swallow the signup: the account exists
+  // either way, and the signed-in app can re-send the link.
+  if (verificationEnforced()) {
+    const token = await createEmailVerificationToken(created.userId);
+    const { html, text: plain } = renderVerificationEmail({
+      name,
+      verifyUrl: getVerificationUrl(appBaseUrl(), token),
+      expiresHours: VERIFICATION_TOKEN_EXPIRY_HOURS,
+    });
+    await getEmailSender()
+      .send(email, `Verify your ${productName()} email`, html, plain)
+      .catch(() => undefined);
+  }
 
   await createSession(created.userId, created.workspaceId);
   redirect("/");
@@ -184,7 +222,7 @@ export async function signIn(_previous: AuthState, formData: FormData): Promise<
   // types it next is not the person who guessed.
   await clearTally(bucket);
 
-  if (!user.emailVerified) {
+  if (!user.emailVerified && verificationEnforced()) {
     return { error: "Please verify your email before signing in. Check your inbox for the verification link.", field: "email" };
   }
 

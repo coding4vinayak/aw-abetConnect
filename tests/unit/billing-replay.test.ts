@@ -1,11 +1,11 @@
 // #115 — replayed and out-of-order Stripe events, pinned offline.
 //
-// This app is the suite's sync-only billing member — no mails, no jobs — but
-// the same two facts about Stripe's delivery hold. An event is claimed by its
-// id before it is processed, so a replay is answered `duplicate` instead of
-// re-running the sync; and the subscription row carries the newest event time
-// it has applied, so an older snapshot that arrives late cannot drag a paying
-// buyer back to `trialing` or `past_due`.
+// The same two facts about Stripe's delivery hold here as in every sibling
+// app: an event is claimed by its id before it is processed, so a replay is
+// answered `duplicate` instead of re-running the sync; and the subscription
+// row carries the newest event time it has applied, so an older snapshot that
+// arrives late cannot drag a paying buyer back to `trialing` or `past_due`.
+// The billing mails ride the same guards — see billing-mails.test.ts.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -77,7 +77,7 @@ describe("every verified delivery is claimed before it is handled", () => {
 
 describe("an older snapshot cannot drag the row backwards", () => {
   it("subscription branches pass the event's own created time", () => {
-    assert.match(webhook, /await syncIfFresh\(event\.data\.object as Stripe\.Subscription, event\.created\);/);
+    assert.match(webhook, /await syncAndAnnounce\(event\.data\.object as Stripe\.Subscription, event\.created\);/);
   });
 
   it("refuses a snapshot older than the watermark", () => {
