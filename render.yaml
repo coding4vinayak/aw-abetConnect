@@ -36,3 +36,13 @@ services:
         sync: false
       - key: LLM_TIMEOUT_MS
         sync: false
+      - key: RESEND_API_KEY
+        sync: false       # optional; without a provider mail is logged, not sent
+      - key: EMAIL_FROM
+        sync: false       # e.g. "Abetworks <noreply@abetworks.in>"
+      - key: EMAIL_WEBHOOK_URL
+        sync: false       # alternative to Resend; same {from,to,subject,html,text} JSON
+      - key: EMAIL_WEBHOOK_TOKEN
+        sync: false       # sent as Authorization: Bearer to EMAIL_WEBHOOK_URL
+      - key: PRODUCT_NAME
+        sync: false       # the name mail subjects say (default: abetConnect)
