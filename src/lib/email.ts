@@ -220,17 +220,57 @@ export function renderReceiptEmail(data: {
   planLabel: string;
   periodEnd: Date | null;
   portalUrl: string;
+  trialing?: boolean;
 }): { subject: string; html: string; text: string } {
   const greeting = data.name ? `Hi ${data.name},` : "Hi,";
   const renews = data.periodEnd
     ? new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(data.periodEnd)
     : "your next billing date";
+  if (data.trialing) {
+    return {
+      subject: `${data.product} — trial started`,
+      ...layout(
+        data.product,
+        "Trial started",
+        `${greeting} your ${data.planLabel} trial is active. Your first invoice is dated ${renews}. Cancel any time from the billing portal before then and you are not charged.`,
+        "Billing portal",
+        data.portalUrl,
+      ),
+    };
+  }
   return {
     subject: `${data.product} — payment received`,
     ...layout(
       data.product,
       "Payment received",
       `${greeting} your ${data.planLabel} is active. Your next invoice is dated ${renews}. Manage your card, invoices or cancellation any time from the billing portal.`,
+      "Billing portal",
+      data.portalUrl,
+    ),
+  };
+}
+
+/**
+ * Trial over, first real charge taken. The buyer could cancel here, so this is
+ * the one email that has to remind them why they bought — no feature pitch,
+ * just the plain fact that the trial converted and what the next invoice is.
+ */
+export function renderTrialEndedEmail(data: {
+  product: string;
+  name: string | null;
+  periodEnd: Date | null;
+  portalUrl: string;
+}): { subject: string; html: string; text: string } {
+  const greeting = data.name ? `Hi ${data.name},` : "Hi,";
+  const next = data.periodEnd
+    ? new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(data.periodEnd)
+    : "your next billing date";
+  return {
+    subject: `Your ${data.product} trial is now a paid plan`,
+    ...layout(
+      data.product,
+      "Trial ended — paid plan active",
+      `${greeting} your 14-day trial just converted and your first payment went through. Your next invoice is dated ${next}. Everything stays exactly as you left it; cancel any time from the portal and you are not billed again.`,
       "Billing portal",
       data.portalUrl,
     ),

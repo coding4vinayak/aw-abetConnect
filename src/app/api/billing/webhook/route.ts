@@ -3,14 +3,14 @@ import Stripe from "stripe";
 import { getStripe, verifyWebhook, syncSubscriptionFromStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { claimStripeEvent, finishStripeEvent } from "@/lib/billing-events";
-import { DUNNING_STATUSES, sendCancellation, sendDunning, sendReceipt, sendRecovered } from "@/lib/billing-mails";
+import { DUNNING_STATUSES, sendCancellation, sendDunning, sendReceipt, sendRecovered, sendTrialEnded } from "@/lib/billing-mails";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Apply a subscription snapshot only if it is not older than the newest one
- * this row has already applied — and announce the one transition that deserves
- * a mail of its own.
+ * this row has already applied — and announce the transitions that deserve
+ * mail of their own.
  *
  * Stripe delivers in no promised order: a late "trialing" snapshot delivered
  * after the conversion would otherwise drag a paying buyer backwards. Exact
@@ -42,13 +42,19 @@ async function syncAndAnnounce(stripeSub: Stripe.Subscription, eventCreatedAt: n
 
   await syncSubscriptionFromStripe(stripeSub, at);
 
-  // The one transition abetConnect announces: a past-due subscription that
-  // recovered. Silence here reads as "still broken" and prompts a
-  // cancellation. The sync above has already committed, and `sendRecovered`
-  // swallows its own failures — a mail must never fail a webhook whose work
-  // is done.
-  if (previous && workspaceId && previous.status === "past_due" && stripeSub.status === "active") {
-    await sendRecovered(workspaceId);
+  // The two transitions abetConnect announces: a trial that converted to a
+  // paid plan (the money moment the buyer most often forgets they authorised)
+  // and a past-due subscription that recovered (silence there reads as "still
+  // broken" and prompts a cancellation). The sync above has already
+  // committed, and every sender swallows its own failures — a mail must never
+  // fail a webhook whose work is done.
+  if (previous && workspaceId && stripeSub.status === "active") {
+    if (previous.status === "trialing") {
+      const raw = stripeSub.items.data[0]?.current_period_end;
+      await sendTrialEnded(workspaceId, typeof raw === "number" ? new Date(raw * 1000) : null);
+    } else if (previous.status === "past_due") {
+      await sendRecovered(workspaceId);
+    }
   }
 
   return true;

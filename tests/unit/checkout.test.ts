@@ -140,9 +140,12 @@ describe("the pricing page in front of somebody who already pays", () => {
     assert.equal((pricingPage.match(/<BuyButton/g) ?? []).length, 2, "one per card");
   });
 
-  it("keeps abetConnect's no-card-trial story out of the Stripe trial window", () => {
-    // The demo workspace is the trial; the paid checkout charges immediately.
-    assert.doesNotMatch(stripeModule, /trial_period_days/);
-    assert.match(pricingPage, /No card required/);
+  it("asks Stripe for the trial the pricing page and sales kit promise", () => {
+    // Every sales asset says 14 days free, card up front. Checkout is the one
+    // place that can make that false, so the window is pinned here.
+    assert.match(stripeModule, /subscription_data: \{ metadata: \{ workspaceId \}, trial_period_days: 14 \}/);
+    assert.equal((stripeModule.match(/trial_period_days/g) ?? []).length, 1, "one trial window, named once");
+    assert.equal((pricingPage.match(/Start 14-day free trial/g) ?? []).length, 2, "both plans offer it");
+    assert.match(pricingPage, /every paid plan starts with a 14-day free trial/);
   });
 });

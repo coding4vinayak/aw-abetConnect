@@ -274,26 +274,32 @@ POST /api/billing/portal
 POST /api/billing/webhook
 
 `checkout` takes `{ priceId: "SEAT_MONTHLY" | "SEAT_ANNUAL", returnUrl }` and
-returns `{ url }` to redirect the buyer to. `portal` takes `{ returnUrl }`
+returns `{ url }` to redirect the buyer to. It starts a **14-day free trial**
+(the same offer as the other four paid apps): the card is collected up front,
+the first invoice lands on day 14, and cancelling in the portal before then
+costs nothing. `portal` takes `{ returnUrl }`
 and returns the Customer Portal URL for plan changes and cancellation. The
 webhook handles `checkout.session.completed`, `customer.subscription.*`, and
 `invoice.payment_failed`, syncing status into the `Subscription` row the app
 reads with `hasActiveSubscription()`. Replays are answered `duplicate` without re-running the handler: every verified delivery is claimed by its event id before it is handled, and the row carries the newest event time it has applied, so a redelivered or late-arriving snapshot cannot re-fire a mail or drag the status backwards.
 
-It also sends the four billing mails: a receipt when a checkout completes, a
-dunning notice on every failed payment while money is still owed, an all-clear
-when a past-due subscription recovers, and a cancellation confirmation when the
-subscription ends. They are addressed to the workspace owner's own address from
-the membership row — `ensureCustomer` creates the Stripe customer with an empty
-email, so Stripe is never asked for an address it may never have learned. Every
+It also sends the five billing mails: a **trial-started** note when checkout
+opens a trial (or a receipt when a checkout is charged immediately), a dunning
+notice on every failed payment while money is still owed, an all-clear when a
+past-due subscription recovers, a note when a **trial converts to a paid plan**,
+and a cancellation confirmation when the subscription ends. They are addressed
+to the workspace owner's own address from the membership row — `ensureCustomer`
+creates the Stripe customer with an empty email, so Stripe is never asked for an
+address it may never have learned. Every
 mail is best-effort *after* the sync commits: a provider outage logs the miss
 instead of failing the webhook, because a retry cannot delay a message whose
 transition is already written away.
 
-`/members` shows the plan state to the signed-in workspace: active with the
-renewal date and a portal button, the dunning warning with the same button when
-a payment fails or runs out, a "payment received" note after checkout, and the
-pricing link while there is no plan.
+`/members` shows the plan state to the signed-in workspace: a trial with the
+first-charge date and a portal button, active with the renewal date and the same
+button, the dunning warning when a payment fails or runs out, a
+"trial started"/"payment received" note after checkout, and the pricing link
+while there is no plan.
 
 Setup: create the two prices in the Stripe dashboard, set `STRIPE_SECRET_KEY`,
 `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_SEAT_MONTHLY`, `STRIPE_PRICE_SEAT_ANNUAL`
