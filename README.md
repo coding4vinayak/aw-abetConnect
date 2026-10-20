@@ -277,8 +277,13 @@ POST /api/billing/webhook
 returns `{ url }` to redirect the buyer to. It starts a **14-day free trial**
 (the same offer as the other four paid apps): the card is collected up front,
 the first invoice lands on day 14, and cancelling in the portal before then
-costs nothing. `portal` takes `{ returnUrl }`
-and returns the Customer Portal URL for plan changes and cancellation. The
+costs nothing. The line-item quantity is the workspace's used seats — every
+membership plus every live invitation — so the invoice matches the team the
+invite meter enforces. `customer.subscription.*` writes the quantity back into
+`Subscription.stripeSeats`; changing it in the portal is the upgrade path, and a
+new invitation is refused at the paid count until it changes. `portal` takes
+`{ returnUrl }` and returns the Customer Portal URL for plan changes, seat
+changes and cancellation. The
 webhook handles `checkout.session.completed`, `customer.subscription.*`, and
 `invoice.payment_failed`, syncing status into the `Subscription` row the app
 reads with `hasActiveSubscription()`. Replays are answered `duplicate` without re-running the handler: every verified delivery is claimed by its event id before it is handled, and the row carries the newest event time it has applied, so a redelivered or late-arriving snapshot cannot re-fire a mail or drag the status backwards.
@@ -342,6 +347,10 @@ An invitation is a link, not an account. What makes it safe to send:
   cookies — a dumped `Invite` table is a list of unusable strings.
 - **Re-inviting rotates the link.** The plaintext is never kept, so an old copy in
   somebody's drafts stops working instead of living next to the new one.
+- **It costs a seat.** Members and live invitations are both counted, and the
+  subscription's line-item quantity is the cap. A new invitation at the cap is
+  refused with the count and a link to the portal; rotating an existing one is
+  free because that seat was already paid for.
 
 abetConnect **does not email invitations**. `/members` shows the link once beside a copy button,
 and pasting it into a message you already trust is the step left to a human. An

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireSession } from "@/lib/session";
 import { canEditRole, canManageRoles } from "@/lib/roles";
 import { listPendingInvites } from "@/lib/invites";
+import { seatSummary, seatUsage } from "@/lib/seats";
 import { SUBSCRIPTION_STATUS_OPEN } from "@/lib/stripe";
 import { InviteForm } from "@/components/invite-form";
 import { ManageBillingButton } from "@/components/manage-billing";
@@ -137,7 +138,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
   const session = await requireSession();
   const { billing } = await searchParams;
 
-  const [memberships, invites, subscription] = await Promise.all([
+  const [memberships, invites, subscription, seats] = await Promise.all([
     db.membership.findMany({
       where: { workspaceId: session.workspaceId },
       include: { user: { select: { email: true, name: true } } },
@@ -147,6 +148,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
       where: { workspaceId: session.workspaceId },
       select: { status: true, stripeCurrentPeriodEnd: true },
     }),
+    seatUsage(session.workspaceId),
   ]);
 
   const members = memberships.sort(
@@ -155,6 +157,7 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
       a.createdAt.getTime() - b.createdAt.getTime(),
   );
 
+  const seatLine = seatSummary(seats);
   const isManager = canManageRoles(session.role);
   // An admin is offered one role because an admin cannot hand out admin. The
   // rule is canGrant's, enforced on the server whatever this list says.
@@ -196,6 +199,14 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
             are invited by an owner or an admin, and an invitation names one address and works once,
             so it cannot be forwarded to whoever happens to click it first.
           </p>
+          {seatLine ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface-raised px-4 py-3 text-[12px] text-muted">
+              <span>{seatLine}</span>
+              {seats.cap !== null && seats.used >= seats.cap ? (
+                <ManageBillingButton label="Add seats in the portal" />
+              ) : null}
+            </div>
+          ) : null}
           <PlanBanner billing={billing} subscription={subscription} />
         </div>
 

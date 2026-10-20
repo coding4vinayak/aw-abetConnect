@@ -120,7 +120,8 @@ const {
   listPendingInvites,
   revokeInvite,
 } = await import("../src/lib/invites");
-const { editSeat, REMOVE } = await import("../src/lib/seats");
+const { editSeat, REMOVE, seatSummary, seatUsage } = await import("../src/lib/seats");
+const { syncSubscriptionFromStripe } = await import("../src/lib/stripe");
 
 /**
  * Fixtures.
@@ -303,6 +304,103 @@ try {
     await issue("teammate@acme.test", "MEMBER"),
     "already a member",
   );
+
+  // -------------------------------------------------------------------------
+  // 2b. The seat meter: the invoice and the invitation rule are one number
+  //
+  // The per-agent price used to be true only for a team of one. These drive
+  // the two halves a buyer feels: checkout bills the people who are here plus
+  // the links still outstanding, and an invitation cannot walk past what the
+  // subscription actually pays for.
+  // -------------------------------------------------------------------------
+
+  const studio = await owned("owner@studio.test", "Studio Team");
+  const studioInvite = (email: string) =>
+    createInvite({
+      workspaceId: studio.workspace.id,
+      email,
+      role: "MEMBER",
+      createdById: studio.user.id,
+    });
+
+  eq("a workspace with no subscription has no invented cap", (await seatUsage(studio.workspace.id)).cap, null);
+  accepts("and can invite before its first checkout", await studioInvite("one@studio.test"));
+  eq("the pending invitation occupies a seat", (await seatUsage(studio.workspace.id)).used, 2);
+
+  await db.subscription.create({
+    data: {
+      workspaceId: studio.workspace.id,
+      stripeCustomerId: "cus_studio_seats",
+      status: "active",
+      stripeSeats: 2,
+    },
+  });
+
+  eq("the paid quantity becomes the cap", (await seatUsage(studio.workspace.id)).cap, 2);
+  refuses(
+    "a third person on a two-seat plan",
+    await studioInvite("two@studio.test"),
+    "All 2 paid seats",
+  );
+  const seatRefusal = await studioInvite("two@studio.test");
+  ok(
+    "the refusal says where the next seat comes from",
+    !seatRefusal.ok && seatRefusal.error.includes("billing portal"),
+  );
+  accepts(
+    "rotating the existing invitation costs no new seat",
+    await studioInvite("one@studio.test"),
+  );
+  eq(
+    "and there is still one live invitation",
+    await db.invite.count({ where: { workspaceId: studio.workspace.id } }),
+    1,
+  );
+
+  await db.subscription.update({
+    where: { workspaceId: studio.workspace.id },
+    data: { stripeSeats: 3 },
+  });
+  accepts("a third paid seat lets the next person in", await studioInvite("two@studio.test"));
+  const fullStudio = await seatUsage(studio.workspace.id);
+  eq("the cap is what the invoice says", fullStudio.cap, 3);
+  eq("the team now sits exactly at that cap", fullStudio.used, 3);
+  eq(
+    "and the banner says so in the same words as the refusal",
+    seatSummary(fullStudio),
+    "All 3 paid seats are taken or already invited — the next person needs another seat.",
+  );
+  refuses(
+    "a fourth person on a three-seat plan",
+    await studioInvite("three@studio.test"),
+    "All 3 paid seats",
+  );
+
+  // The other half: a quantity change made in Stripe's portal arrives through
+  // the same sync the webhook calls, so the cap follows the invoice without a
+  // second checkout.
+  await syncSubscriptionFromStripe({
+    id: "sub_studio",
+    customer: "cus_studio_seats",
+    status: "active",
+    cancel_at_period_end: false,
+    metadata: { workspaceId: studio.workspace.id },
+    items: {
+      data: [
+        {
+          price: { id: "price_studio_seats" },
+          quantity: 5,
+          current_period_end: Math.floor(Date.now() / 1000) + 86_400,
+        },
+      ],
+    },
+  } as unknown as Parameters<typeof syncSubscriptionFromStripe>[0]);
+  eq(
+    "a quantity change from Stripe moves the cap",
+    (await seatUsage(studio.workspace.id)).cap,
+    5,
+  );
+  accepts("and the next invitation fits again", await studioInvite("three@studio.test"));
 
   // -------------------------------------------------------------------------
   // 3. Redeeming an invitation
@@ -660,6 +758,25 @@ try {
   );
 
   const seatModule = source("src/lib/seats.ts");
+  const checkoutRoute = source("src/app/api/billing/checkout/route.ts");
+  const inviteModule = source("src/lib/invites.ts");
+  const stripeModule = source("src/lib/stripe.ts");
+  ok(
+    "checkout bills the same seats the meter enforces",
+    checkoutRoute.includes("seatUsage(") && checkoutRoute.includes("Math.max(1, used)"),
+  );
+  ok(
+    "a new invitation is refused at the paid cap",
+    inviteModule.includes("seatDecision(await seatUsage"),
+  );
+  ok(
+    "every subscription sync records the line-item quantity",
+    stripeModule.includes("stripeSeats: seats"),
+  );
+  ok(
+    "the team screen shows the count and the way past it",
+    source("src/app/members/page.tsx").includes("seatSummary(seats)"),
+  );
   ok("the seat action delegates to the tested rule", teamActions.includes("editSeat("));
   ok("…and queries no membership of its own", !/db\.membership/.test(teamActions));
   ok(

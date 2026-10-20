@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { db } from "./db";
 import { isInvitableRole, type InvitableRole } from "./roles";
+import { seatDecision, seatUsage } from "./seats";
 
 /**
  * Invitations: the mechanics of a single-use link.
@@ -96,6 +97,12 @@ export async function createInvite(input: {
     });
     return { ok: true, token, email, role: input.role, expiresAt, rotated: true };
   }
+
+  // The branch above rotated a link that already counted as a seat, so it costs
+  // nothing; reaching here means a new person is being promised access, which is
+  // exactly where the number on the invoice has to have a say.
+  const seat = seatDecision(await seatUsage(input.workspaceId, now));
+  if (!seat.allowed) return { ok: false, error: seat.error };
 
   await db.invite.create({
     data: {

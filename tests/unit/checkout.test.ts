@@ -109,19 +109,54 @@ describe("one open checkout session per buyer", () => {
     assert.match(stripeModule, /s\.metadata\?\.priceId === priceId/);
     // A session open on the other price is expired rather than left behind.
     assert.match(stripeModule, /checkout\.sessions\.expire\(s\.id\)/);
-    // Stamped, so the next press can recognise its own session.
-    assert.match(stripeModule, /metadata: \{ workspaceId, priceId \}/);
+    // Stamped, so the next press can recognise its own session — and can tell
+    // that a session created for a smaller team must not be handed back.
+    assert.match(stripeModule, /metadata: \{ workspaceId, priceId, seats: String\(quantity\) \}/);
+    assert.match(stripeModule, /s\.metadata\?\.seats === String\(quantity\)/);
   });
 
   it("shares one idempotency key across clicks that race the lookup", () => {
     assert.match(
       stripeModule,
-      /idempotencyKey: `checkout:\$\{workspaceId\}:\$\{priceId\}:\$\{Math\.floor\(Date\.now\(\) \/ 10_000\)\}`/,
+      /idempotencyKey: `checkout:\$\{workspaceId\}:\$\{priceId\}:\$\{quantity\}:\$\{Math\.floor\(Date\.now\(\) \/ 10_000\)\}`/,
     );
   });
 
   it("still gets the buyer to a checkout if the reuse lookup itself fails", () => {
     assert.match(stripeModule, /catch \(err\) \{\s*console\.error\("\[billing\] checkout reuse lookup failed/);
+  });
+});
+
+describe("checkout bills the team the invite meter enforces", () => {
+  it("counts members and live invitations before it opens a session", () => {
+    assert.match(checkout, /const \{ used \} = await seatUsage\(session\.workspaceId\);/);
+    assert.match(checkout, /Math\.max\(1, used\)/);
+    assert.match(checkout, /const \{ used \} = await seatUsage[\s\S]*await createCheckoutSession/);
+  });
+
+  it("puts that count on the Stripe line item", () => {
+    assert.match(stripeModule, /line_items: \[\{ price: PRICES\[priceId\], quantity \}\]/);
+    assert.match(stripeModule, /const quantity = Math\.max\(1, Math\.trunc\(seats\)\)/);
+    assert.match(stripeModule, /seats = 1/);
+  });
+
+  it("stores the quantity Stripe reports back for the next invite", () => {
+    assert.match(stripeModule, /const seats = typeof item\?\.quantity === "number" \? item\.quantity : undefined;/);
+    assert.match(stripeModule, /stripeSeats: seats/);
+    assert.match(stripeModule, /stripeSeats: seats \?\? null/);
+  });
+
+  it("shows the count and the way past it on the team screen", () => {
+    const membersPage = source("../../src/app/members/page.tsx");
+    assert.match(membersPage, /seatUsage\(session\.workspaceId\)/);
+    assert.match(membersPage, /seatSummary\(seats\)/);
+    assert.match(membersPage, /Add seats in the portal/);
+  });
+
+  it("sells the same rule on the pricing page", () => {
+    assert.match(pricingPage, /checkout bills the size of your\s+team/);
+    assert.match(pricingPage, /How are agents counted\?/);
+    assert.match(pricingPage, /New invitations stop at the paid count/);
   });
 });
 

@@ -106,17 +106,31 @@ export function sameOriginReturnUrl(raw: unknown): string | null {
  * ten seconds — the two requests share a key, and Stripe answers the second
  * with the first's session instead of making another.
  */
-export async function createCheckoutSession(workspaceId: string, priceId: keyof typeof PRICES, returnUrl: string) {
+export async function createCheckoutSession(
+  workspaceId: string,
+  priceId: keyof typeof PRICES,
+  returnUrl: string,
+  seats = 1,
+) {
   const customerId = await ensureCustomer(workspaceId, "", "");
+  // Checkout bills the team the meter will enforce. A fractional or zero count
+  // cannot become a Stripe quantity, and a workspace with no seat row at all is
+  // still one owner — so the floor is the owner, never zero.
+  const quantity = Math.max(1, Math.trunc(seats));
 
   try {
     const open = await getStripe().checkout.sessions.list({ customer: customerId, status: "open", limit: 10 });
     const mine = open.data.filter((s) => s.metadata?.workspaceId === workspaceId);
-    const reusable = mine.find((s) => s.metadata?.priceId === priceId && s.url);
+    // Reuse only a session that bills the same team. An invitation issued
+    // while the card form sat open changes the number; handing back the older
+    // session would charge the older number for a year.
+    const reusable = mine.find(
+      (s) => s.metadata?.priceId === priceId && s.metadata?.seats === String(quantity) && s.url,
+    );
     if (reusable?.url) return reusable.url;
     await Promise.all(
       mine
-        .filter((s) => s.metadata?.priceId !== priceId)
+        .filter((s) => s.metadata?.priceId !== priceId || s.metadata?.seats !== String(quantity))
         .map((s) => getStripe().checkout.sessions.expire(s.id).catch(() => undefined)),
     );
   } catch (err) {
@@ -127,11 +141,12 @@ export async function createCheckoutSession(workspaceId: string, priceId: keyof 
     {
       mode: "subscription",
       customer: customerId,
-      line_items: [{ price: PRICES[priceId], quantity: 1 }],
+      line_items: [{ price: PRICES[priceId], quantity }],
       allow_promotion_codes: true,
       billing_address_collection: "required",
-      // Stamped so the next press of this button can recognise this session.
-      metadata: { workspaceId, priceId },
+      // Stamped so the next press of this button can recognise this session —
+      // and so a changed team gets a changed session instead of the old one.
+      metadata: { workspaceId, priceId, seats: String(quantity) },
       // The offer the pricing page, llms.txt and the sales kit all make:
       // 14 days free, card up front, first invoice on day 14. The other four
       // paid apps pass the same value — this is the fleet's trial, not a
@@ -140,7 +155,9 @@ export async function createCheckoutSession(workspaceId: string, priceId: keyof 
       success_url: `${returnUrl}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: returnUrl,
     },
-    { idempotencyKey: `checkout:${workspaceId}:${priceId}:${Math.floor(Date.now() / 10_000)}` },
+    {
+      idempotencyKey: `checkout:${workspaceId}:${priceId}:${quantity}:${Math.floor(Date.now() / 10_000)}`,
+    },
   );
   return session.url;
 }
@@ -180,14 +197,20 @@ export async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription,
   if (!workspaceId) return;
 
   const status = stripeSub.status;
-  const itemPeriodEnd = stripeSub.items.data[0]?.current_period_end;
+  const item = stripeSub.items.data[0];
+  const itemPeriodEnd = item?.current_period_end;
   const periodEnd = typeof itemPeriodEnd === "number" ? new Date(itemPeriodEnd * 1000) : null;
+  // The quantity is the paid seat cap. Leave the stored number alone when a
+  // snapshot arrives without one, rather than turning a known cap into a
+  // fail-open null on the strength of a payload that forgot the field.
+  const seats = typeof item?.quantity === "number" ? item.quantity : undefined;
 
   await db.subscription.upsert({
     where: { workspaceId },
     update: {
       stripeSubscriptionId: stripeSub.id,
-      stripePriceId: stripeSub.items.data[0]?.price.id,
+      stripePriceId: item?.price.id,
+      ...(seats !== undefined ? { stripeSeats: seats } : {}),
       stripeCurrentPeriodEnd: periodEnd,
       status,
       cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
@@ -197,7 +220,8 @@ export async function syncSubscriptionFromStripe(stripeSub: Stripe.Subscription,
       workspaceId,
       stripeCustomerId: stripeSub.customer as string,
       stripeSubscriptionId: stripeSub.id,
-      stripePriceId: stripeSub.items.data[0]?.price.id,
+      stripePriceId: item?.price.id,
+      stripeSeats: seats ?? null,
       stripeCurrentPeriodEnd: periodEnd,
       status,
       cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
