@@ -287,6 +287,20 @@ export default async function MembersPage({ searchParams }: { searchParams: Prom
             />
           </Section>
         )}
+
+        {isManager && (
+          <Section
+            title="Your data"
+            note="Everything this workspace holds — contacts, conversations, messages, score signals, drafts, team and webhook settings — in one JSON file. Passwords, sessions, API keys, invitation links and billing are not included."
+          >
+            <a
+              href="/api/export"
+              className="inline-flex rounded-md bg-blue-600 px-3 py-2 text-[12px] font-semibold text-white transition hover:bg-blue-700"
+            >
+              Download workspace export (JSON)
+            </a>
+          </Section>
+        )}
       </main>
     </div>
   );

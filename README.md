@@ -365,6 +365,23 @@ members only. Taking someone's access also deletes the session cookie that was m
 in this workspace, so their queue closes on the next request rather than whenever their
 tab happens to reload.
 
+### Your data
+
+The pricing FAQ and the terms say the buyer can export the workspace, and the privacy
+page tells them to take a copy before deleting. **`/members` → Your data** is that door:
+owners and admins download every contact, conversation, message, score signal, draft,
+team seat, pending invitation and webhook destination as one human-readable JSON file.
+The same document is available to the browser session directly:
+
+GET /api/export
+
+It is session-gated, not an API-key endpoint: the export is the data-rights door for
+the people who own the account, and a member who can work the queue cannot walk away
+with the whole workspace in one request. Credentials and billing are deliberately
+absent — no password digests, session tokens, API-key hashes, invitation token hashes,
+webhook signing secrets or Stripe identifiers. Every query is scoped by the session's
+workspace, so the file can only ever contain the caller's own rows.
+
 ## Verifying it
 
 ```bash
@@ -408,22 +425,23 @@ npm run check
 
 which is `typecheck`, `lint`, and:
 
-- **`test:unit`** runs 61 unit tests over the pure modules with no server and no
+- **`test:unit`** runs 140 unit tests over the pure modules with no server and no
   database: the CORS origin rules, the address/phone/date parsers, the role
-  grant matrix, the keyset cursor codec, and the heuristic scorer (a senior
-  buyer with budget and a deadline scores HOT, a pricing newsletter scores
-  NOISE, nothing pins past 100, and the rows the panel shows add up to the
-  score).
+  grant matrix, the keyset cursor codec, the export filename's header safety,
+  and the heuristic scorer (a senior buyer with budget and a deadline scores
+  HOT, a pricing newsletter scores NOISE, nothing pins past 100, and the rows
+  the panel shows add up to the score).
 - **`check:docs`** reads this README against the tree. Every documented endpoint has a
   handler, every handler is documented, every screen is named here, and every
   environment variable the README tells you to set is read by something.
 - **`check:access`** builds a throwaway database by running `prisma migrate deploy`
   against the committed migrations — the same command the deploy below runs — and then
-  asserts 122 things about roles and invitations: the whole grant matrix, the
-  properties an invitation link is supposed to have, an expired link, a revoked link,
-  a link redeemed twice in the same instant, one workspace reaching for another's
-  seats, and whether the request handlers still call these rules instead of keeping
-  private copies of them. It uses no credentials, never touches `prisma/dev.db`, and
+  asserts 168 things about roles, invitations and the export: the whole grant matrix,
+  the properties an invitation link is supposed to have, an expired link, a revoked
+  link, a link redeemed twice in the same instant, one workspace reaching for
+  another's seats, whether the request handlers still call these rules instead of
+  keeping private copies of them, and whether the workspace export carries every
+  content section while leaving credentials and other tenants' rows behind. It uses no credentials, never touches `prisma/dev.db`, and
   is the reason the role table above is evidence rather than a description. A
   migration that only works on a machine already holding the data fails here, not in
   front of a customer.
