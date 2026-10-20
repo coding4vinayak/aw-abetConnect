@@ -1,9 +1,11 @@
 /**
  * What abetConnect tells its customers about their billing.
  *
- * Four mails, each driven by an event this app has already committed: the
- * receipt after checkout, the dunning notice when a payment fails, the
- * all-clear when it recovers, and the confirmation when a subscription ends.
+ * Five mails, each driven by an event this app has already committed: the
+ * trial-started note (or receipt, when a checkout is charged immediately)
+ * after checkout, the dunning notice when a payment fails, the all-clear when
+ * it recovers, the note when a trial converts to a paid plan, and the
+ * confirmation when a subscription ends.
  *
  * Two rules shape every function here:
  *
@@ -32,6 +34,7 @@ import {
   renderPaymentFailedEmail,
   renderPaymentRecoveredEmail,
   renderReceiptEmail,
+  renderTrialEndedEmail,
 } from "./email";
 
 /**
@@ -56,11 +59,12 @@ export async function ownerOf(workspaceId: string) {
 }
 
 /**
- * Confirms the payment to the buyer. Driven off the checkout session (which
+ * Confirms what the checkout actually did to the buyer: a trial that started
+ * (no money moved yet), or a payment. Driven off the checkout session (which
  * carries the customer email) rather than a later subscription event, so the
- * receipt fires exactly once per purchase — and the event claim in POST is
- * what keeps that true when Stripe redelivers. The period end is a nicety:
- * a receipt without a date still confirms payment.
+ * mail fires exactly once per purchase — and the event claim in POST is what
+ * keeps that true when Stripe redelivers. The period end is a nicety: a
+ * mail without a date still states the event.
  */
 export async function sendReceipt(session: Stripe.Checkout.Session) {
   try {
@@ -68,13 +72,15 @@ export async function sendReceipt(session: Stripe.Checkout.Session) {
     if (!email) return;
     const subId = typeof session.subscription === "string" ? session.subscription : undefined;
     let periodEnd: Date | null = null;
+    let trialing = false;
     if (subId) {
       try {
         const sub = await getStripe().subscriptions.retrieve(subId);
         const raw = sub.items.data[0]?.current_period_end;
         if (typeof raw === "number") periodEnd = new Date(raw * 1000);
+        trialing = sub.status === "trialing";
       } catch {
-        // period end is a nicety; a receipt without a date still confirms payment.
+        // period end is a nicety; a mail without a date still states the event.
       }
     }
     const { subject, html, text: plain } = renderReceiptEmail({
@@ -83,6 +89,7 @@ export async function sendReceipt(session: Stripe.Checkout.Session) {
       planLabel: `${productName()} subscription`,
       periodEnd,
       portalUrl: `${appBaseUrl()}/members`,
+      trialing,
     });
     await getEmailSender().send(email, subject, html, plain);
   } catch (error) {
@@ -131,6 +138,30 @@ export async function sendRecovered(workspaceId: string) {
     await getEmailSender().send(owner.user.email, subject, html, plain);
   } catch (error) {
     console.error("[billing] recovery mail not sent:", error);
+  }
+}
+
+/**
+ * The money moment. A 14-day trial that converted is the one transition the
+ * buyer most often forgets they authorised, so it gets its own mail: the fact
+ * of the charge, the next invoice date, and the cancel-anytime promise that
+ * made a card-up trial acceptable in the first place. Sent only on a real
+ * trialing → active transition; the caller reads the previous status before
+ * the sync overwrites it.
+ */
+export async function sendTrialEnded(workspaceId: string, periodEnd: Date | null) {
+  try {
+    const owner = await ownerOf(workspaceId);
+    if (!owner) return;
+    const { subject, html, text: plain } = renderTrialEndedEmail({
+      product: productName(),
+      name: owner.user.name,
+      periodEnd,
+      portalUrl: `${appBaseUrl()}/members`,
+    });
+    await getEmailSender().send(owner.user.email, subject, html, plain);
+  } catch (error) {
+    console.error("[billing] trial-ended mail not sent:", error);
   }
 }
 

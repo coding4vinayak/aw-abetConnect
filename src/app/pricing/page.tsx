@@ -14,11 +14,15 @@ export const metadata: Metadata = {
 /**
  * What a workspace that is already paying needs to be told before it shops:
  * which card it is on, and where changes actually happen. `POST
- * /api/billing/checkout` refuses a live subscription, so a "Start now" button
+ * /api/billing/checkout` refuses a live subscription, so a start button
  * in front of a paying customer would be a button that only ever says no.
  */
-function planLine(status: string, priceId: string | null): string {
+function planLine(status: string, priceId: string | null, periodEnd: Date | null): string {
   const named = priceId === PRICES.SEAT_ANNUAL ? "Annual" : priceId === PRICES.SEAT_MONTHLY ? "Monthly" : "current";
+  if (status === "trialing") {
+    const until = periodEnd ? new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(periodEnd) : null;
+    return `This workspace is trialing the ${named} plan${until ? ` until ${until}` : ""}, when the first invoice lands.`;
+  }
   if (status === "past_due") {
     return `This workspace is on the ${named} plan, and its last payment was declined. Updating the card is the fix — a new subscription would not pay the old one.`;
   }
@@ -33,7 +37,7 @@ export default async function Page() {
   const plan = session
     ? await db.subscription.findUnique({
         where: { workspaceId: session.workspaceId },
-        select: { status: true, stripePriceId: true },
+        select: { status: true, stripePriceId: true, stripeCurrentPeriodEnd: true },
       })
     : null;
   const billed = plan !== null && (SUBSCRIPTION_STATUS_OPEN as readonly string[]).includes(plan.status);
@@ -46,7 +50,7 @@ export default async function Page() {
         <p className="mt-2 text-muted">One plan, everything included. Enterprise adds SSO, audit exports, and a 99.9% SLA.</p>
         {billed && plan ? (
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-            <span>{planLine(plan.status, plan.stripePriceId)}</span>
+            <span>{planLine(plan.status, plan.stripePriceId, plan.stripeCurrentPeriodEnd)}</span>
             <ManageBillingButton label="Change plan in the portal" />
           </div>
         ) : null}
@@ -60,7 +64,7 @@ export default async function Page() {
             ) : billed ? (
               <div className="mt-6"><ManageBillingButton label="Switch in the portal" /></div>
             ) : (
-              <div className="mt-6"><BuyButton priceId="SEAT_MONTHLY" label="Start now" /></div>
+              <div className="mt-6"><BuyButton priceId="SEAT_MONTHLY" label="Start 14-day free trial" /></div>
             )}
           </div>
           <div className="rounded-2xl border-2 border-blue-600 p-6 bg-surface-raised">
@@ -72,7 +76,7 @@ export default async function Page() {
             ) : billed ? (
               <div className="mt-6"><ManageBillingButton label="Switch in the portal" /></div>
             ) : (
-              <div className="mt-6"><BuyButton priceId="SEAT_ANNUAL" label="Go annual" /></div>
+              <div className="mt-6"><BuyButton priceId="SEAT_ANNUAL" label="Start 14-day free trial" /></div>
             )}
           </div>
           <div className="rounded-2xl border p-6 border-line bg-surface-raised">
@@ -84,7 +88,7 @@ export default async function Page() {
         </div>
         <h2 className="mt-12 text-xl font-bold">Questions</h2>
         <div className="mt-4 space-y-4">
-          <div><p className="font-semibold text-foreground">Is there a trial?</p><p className="mt-1 text-muted">Yes — sign in and the demo workspace walks you through a live queue. No card required.</p></div>
+          <div><p className="font-semibold text-foreground">Is there a trial?</p><p className="mt-1 text-muted">Yes, two. The live demo workspace is open to anyone, no card. And every paid plan starts with a 14-day free trial — cancel from the billing portal any time before day 14 and you are not charged.</p></div>
           <div><p className="font-semibold text-foreground">Can I cancel anytime?</p><p className="mt-1 text-muted">Yes. Plans are month-to-month; service runs to the end of your billing period.</p></div>
           <div><p className="font-semibold text-foreground">Who owns our conversation data?</p><p className="mt-1 text-muted">You do. Export anytime; we never sell data or train shared models on it.</p></div>
           <div><p className="font-semibold text-foreground">Do you offer annual billing?</p><p className="mt-1 text-muted">Yes — $240 per agent per year, two months free, one invoice.</p></div>

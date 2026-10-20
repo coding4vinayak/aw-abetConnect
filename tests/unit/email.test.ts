@@ -15,6 +15,7 @@ import {
   renderPaymentFailedEmail,
   renderPaymentRecoveredEmail,
   renderReceiptEmail,
+  renderTrialEndedEmail,
   renderVerificationEmail,
   setEmailSender,
   verificationEnforced,
@@ -63,6 +64,32 @@ describe("the billing templates say the event, and link home", () => {
       portalUrl: "https://connect.test/members",
     });
     assert.match(subject, /payment received/);
+    assert.match(text, /Billing portal: https:\/\/connect\.test\/members/);
+  });
+
+  it("a receipt for a trial says trial started, not payment received", () => {
+    const { subject, text } = renderReceiptEmail({
+      product: "abetConnect",
+      name: "Ada",
+      planLabel: "abetConnect subscription",
+      periodEnd: new Date("2026-11-19T00:00:00Z"),
+      portalUrl: "https://connect.test/members",
+      trialing: true,
+    });
+    assert.match(subject, /trial started/);
+    assert.doesNotMatch(subject, /payment received/);
+    assert.match(text, /first invoice is dated/);
+    assert.match(text, /Billing portal: https:\/\/connect\.test\/members/);
+  });
+
+  it("the conversion mail names the trial and the next invoice", () => {
+    const { subject, text } = renderTrialEndedEmail({
+      product: "abetConnect",
+      name: "Ada",
+      periodEnd: new Date("2026-12-03T00:00:00Z"),
+      portalUrl: "https://connect.test/members",
+    });
+    assert.match(subject, /trial is now a paid plan/);
     assert.match(text, /Billing portal: https:\/\/connect\.test\/members/);
   });
 

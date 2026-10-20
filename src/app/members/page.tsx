@@ -94,7 +94,7 @@ function PlanBanner({
     return (
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-green-200 bg-green-50 p-4 text-[13px] text-green-900">
         <span>
-          {justBack ? "Payment received — welcome aboard. " : ""}
+          {justBack ? (trialing ? "Trial started — welcome aboard. " : "Payment received — welcome aboard. ") : ""}
           {trialing ? (
             <>Trial active{renews ? <> — first charge {renews}</> : null}.</>
           ) : (

@@ -132,7 +132,11 @@ export async function createCheckoutSession(workspaceId: string, priceId: keyof 
       billing_address_collection: "required",
       // Stamped so the next press of this button can recognise this session.
       metadata: { workspaceId, priceId },
-      subscription_data: { metadata: { workspaceId } },
+      // The offer the pricing page, llms.txt and the sales kit all make:
+      // 14 days free, card up front, first invoice on day 14. The other four
+      // paid apps pass the same value — this is the fleet's trial, not a
+      // Connect-only experiment.
+      subscription_data: { metadata: { workspaceId }, trial_period_days: 14 },
       success_url: `${returnUrl}?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: returnUrl,
     },

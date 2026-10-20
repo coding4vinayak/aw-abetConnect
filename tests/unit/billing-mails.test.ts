@@ -55,9 +55,10 @@ describe("a committed sync may not be answered with a failure", () => {
 
   it("the webhook syncs before it announces", () => {
     const announce = body(webhook, "syncAndAnnounce");
+    const syncAt = announce.indexOf("syncSubscriptionFromStripe");
     assert.ok(
-      announce.indexOf("syncSubscriptionFromStripe") < announce.indexOf("sendRecovered"),
-      "the transition is announced once the row is already written",
+      syncAt < announce.indexOf("sendTrialEnded") && syncAt < announce.indexOf("sendRecovered"),
+      "each transition is announced once the row is already written",
     );
     assert.match(webhook, /if \(applied && workspaceId\) await sendCancellation\(workspaceId\);/);
   });
@@ -70,8 +71,20 @@ describe("a committed sync may not be answered with a failure", () => {
 });
 
 describe("the transition decides the mail", () => {
-  it("only a past-due subscription that recovered is announced", () => {
-    assert.match(webhook, /previous\.status === "past_due" && stripeSub\.status === "active"/);
+  it("announces a converted trial and a recovered payment, on those transitions only", () => {
+    assert.match(webhook, /if \(previous\.status === "trialing"\) \{/);
+    assert.match(webhook, /await sendTrialEnded\(workspaceId/);
+    assert.match(webhook, /else if \(previous\.status === "past_due"\) \{/);
+    assert.match(webhook, /await sendRecovered\(workspaceId\)/);
+  });
+
+  it("the receipt knows a trial from a payment", () => {
+    assert.match(mails, /trialing = sub\.status === "trialing"/);
+    assert.match(mails, /renderReceiptEmail\(\{[\s\S]*?trialing,/);
+  });
+
+  it("a trial checkout is not announced in the app as a payment", () => {
+    assert.match(members, /trialing \? "Trial started — welcome aboard\. " : "Payment received — welcome aboard\. "/);
   });
 
   it("a stale snapshot announces nothing", () => {
