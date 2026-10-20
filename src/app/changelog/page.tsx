@@ -15,6 +15,15 @@ export default function Page() {
         <p className="mt-2 text-muted">Newest first. Breaking changes are marked <strong>BREAKING</strong> and get 30 days&apos; notice here before they ship.</p>
         <div className="mt-8 space-y-8 border-l-2 border-blue-600 pl-6">
           <div>
+            <p className="text-sm text-muted">October 2026</p>
+            <h2 className="text-lg font-bold">v1.0.1 — Seats that match the team</h2>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
+              <li>Per-agent billing now bills every member and every live invitation at checkout — the team page shows the paid count, and the billing portal is where seats go up or down.</li>
+              <li>Invitations stop at the paid count instead of promising access the invoice did not cover.</li>
+              <li>Re-inviting an outstanding address rotates its link without costing another seat.</li>
+            </ul>
+          </div>
+          <div>
             <p className="text-sm text-muted">September 2026</p>
             <h2 className="text-lg font-bold">v1.0.0 — Initial public release</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">

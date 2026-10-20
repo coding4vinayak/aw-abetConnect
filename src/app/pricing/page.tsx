@@ -8,7 +8,7 @@ import { PRICES, SUBSCRIPTION_STATUS_OPEN } from "@/lib/stripe";
 
 export const metadata: Metadata = {
   title: "Pricing — abetConnect",
-  description: "abetConnect pricing: $24 per agent/month.",
+  description: "abetConnect pricing: $24 per agent/month, with a 14-day free trial.",
 };
 
 /**
@@ -47,7 +47,12 @@ export default async function Page() {
       <SiteNav />
       <main className="mx-auto max-w-4xl px-6 py-12">
         <h1 className="text-3xl font-bold tracking-tight">Pricing</h1>
-        <p className="mt-2 text-muted">One plan, everything included. Enterprise adds SSO, audit exports, and a 99.9% SLA.</p>
+        <p className="mt-2 text-muted">
+          One plan, everything included. You pay per agent: checkout bills the size of your
+          team — everyone in the workspace plus invites still outstanding — and the billing
+          portal is where seats go up or down afterwards. Enterprise adds SSO, audit exports,
+          and a 99.9% SLA.
+        </p>
         {billed && plan ? (
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
             <span>{planLine(plan.status, plan.stripePriceId, plan.stripeCurrentPeriodEnd)}</span>
@@ -88,11 +93,12 @@ export default async function Page() {
         </div>
         <h2 className="mt-12 text-xl font-bold">Questions</h2>
         <div className="mt-4 space-y-4">
+          <div><p className="font-semibold text-foreground">How are agents counted?</p><p className="mt-1 text-muted">Every member in the workspace, plus every invitation that has not been accepted or expired. Checkout starts on that number, so a pending invitation is already paid for and accepting it does not add a charge. New invitations stop at the paid count until you add seats in the portal.</p></div>
           <div><p className="font-semibold text-foreground">Is there a trial?</p><p className="mt-1 text-muted">Yes, two. The live demo workspace is open to anyone, no card. And every paid plan starts with a 14-day free trial — cancel from the billing portal any time before day 14 and you are not charged.</p></div>
           <div><p className="font-semibold text-foreground">Can I cancel anytime?</p><p className="mt-1 text-muted">Yes. Plans are month-to-month; service runs to the end of your billing period.</p></div>
           <div><p className="font-semibold text-foreground">Who owns our conversation data?</p><p className="mt-1 text-muted">You do. Export anytime; we never sell data or train shared models on it.</p></div>
           <div><p className="font-semibold text-foreground">Do you offer annual billing?</p><p className="mt-1 text-muted">Yes — $240 per agent per year, two months free, one invoice.</p></div>
-          <div><p className="font-semibold text-foreground">Already paying, and want the other plan?</p><p className="mt-1 text-muted">The billing portal does it — a plan change there credits what you have already paid, and starting a second checkout would be a second subscription with a second invoice.</p></div>
+          <div><p className="font-semibold text-foreground">Already paying, and want more seats or the other plan?</p><p className="mt-1 text-muted">The billing portal does it — more or fewer agents, or the annual plan, and a change there credits what you have already paid. Starting a second checkout would be a second subscription with a second invoice.</p></div>
         </div>
       </main>
       <SiteFooter />

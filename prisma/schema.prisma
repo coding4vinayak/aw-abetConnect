@@ -49,6 +49,10 @@ model Subscription {
   stripeCustomerId   String   @unique
   stripeSubscriptionId String? @unique
   stripePriceId      String?
+  /// The quantity on the seat line item, written by every subscription sync.
+  /// The invite meter reads it as the paid cap; null means "not known yet"
+  /// and fails open rather than locking a paying team out of its own workspace.
+  stripeSeats        Int?
   stripeCurrentPeriodEnd DateTime?
   status             String   @default("incomplete") // incomplete | trialing | active | past_due | canceled | unpaid
   cancelAtPeriodEnd  Boolean  @default(false)
