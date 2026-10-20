@@ -3,7 +3,7 @@ import Stripe from "stripe";
 import { getStripe, verifyWebhook, syncSubscriptionFromStripe } from "@/lib/stripe";
 import { db } from "@/lib/db";
 import { claimStripeEvent, finishStripeEvent } from "@/lib/billing-events";
-import { DUNNING_STATUSES, sendCancellation, sendDunning, sendReceipt, sendRecovered, sendTrialEnded } from "@/lib/billing-mails";
+import { DUNNING_STATUSES, sendCancellation, sendDunning, sendReceipt, sendRecovered, sendTrialEnded, sendTrialEnding } from "@/lib/billing-mails";
 
 export const dynamic = "force-dynamic";
 
@@ -114,6 +114,15 @@ export async function POST(request: Request) {
       const applied = await syncAndAnnounce(stripeSub, event.created);
       const workspaceId = stripeSub.metadata.workspaceId as string | undefined;
       if (applied && workspaceId) await sendCancellation(workspaceId);
+      break;
+    }
+    case "customer.subscription.trial_will_end": {
+      // Stripe's three-day warning is the clock for an app with no job queue.
+      // No sync: the row is already trialing, and the sender re-reads it so a
+      // late warning after a conversion or cancellation says nothing.
+      const stripeSub = event.data.object as Stripe.Subscription;
+      const workspaceId = stripeSub.metadata.workspaceId as string | undefined;
+      if (workspaceId) await sendTrialEnding(workspaceId);
       break;
     }
     case "invoice.payment_failed": {

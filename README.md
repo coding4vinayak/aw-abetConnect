@@ -283,8 +283,10 @@ webhook handles `checkout.session.completed`, `customer.subscription.*`, and
 `invoice.payment_failed`, syncing status into the `Subscription` row the app
 reads with `hasActiveSubscription()`. Replays are answered `duplicate` without re-running the handler: every verified delivery is claimed by its event id before it is handled, and the row carries the newest event time it has applied, so a redelivered or late-arriving snapshot cannot re-fire a mail or drag the status backwards.
 
-It also sends the five billing mails: a **trial-started** note when checkout
-opens a trial (or a receipt when a checkout is charged immediately), a dunning
+It also sends the six billing mails: a **trial-started** note when checkout
+opens a trial (or a receipt when a checkout is charged immediately), a
+**three-day warning** before the trial converts (driven by Stripe's
+`customer.subscription.trial_will_end`, so it needs no scheduler), a dunning
 notice on every failed payment while money is still owed, an all-clear when a
 past-due subscription recovers, a note when a **trial converts to a paid plan**,
 and a cancellation confirmation when the subscription ends. They are addressed

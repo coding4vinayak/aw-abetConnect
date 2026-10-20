@@ -78,6 +78,13 @@ describe("the transition decides the mail", () => {
     assert.match(webhook, /await sendRecovered\(workspaceId\)/);
   });
 
+  it("Stripe's three-day warning is mailed, and only while the row still says trialing", () => {
+    assert.match(webhook, /case "customer\.subscription\.trial_will_end"/);
+    assert.match(webhook, /await sendTrialEnding\(workspaceId\)/);
+    assert.match(mails, /subscription\.status !== "trialing"\) return/);
+    assert.match(mails, /daysLeft > 3\) return/);
+  });
+
   it("the receipt knows a trial from a payment", () => {
     assert.match(mails, /trialing = sub\.status === "trialing"/);
     assert.match(mails, /renderReceiptEmail\(\{[\s\S]*?trialing,/);
