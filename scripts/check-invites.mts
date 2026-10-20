@@ -898,6 +898,12 @@ try {
   ok("only an owner or admin may take the export", exportRoute.includes("canManageRoles(session.role)"));
   ok("the response is a download, not a rendered page", exportRoute.includes("content-disposition") && exportRoute.includes("attachment;"));
   ok("a shared proxy must not cache a workspace export", exportRoute.includes("no-store"));
+  ok(
+    "export failures use the documented API error envelope",
+    exportRoute.includes('apiError("authentication_error", 401') &&
+      exportRoute.includes('apiError("permission_error", 403') &&
+      !/NextResponse\.json\(\s*\{\s*error:\s*"/.test(exportRoute),
+  );
   const exportLib = source("src/lib/export.ts");
   ok(
     "messages, signals and drafts are scoped through the thread's workspace",
