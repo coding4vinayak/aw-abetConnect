@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { apiError } from "@/lib/api";
 import { getSession } from "@/lib/session";
 import { canManageRoles } from "@/lib/roles";
 import { buildWorkspaceExport, workspaceExportFilename } from "@/lib/export";
@@ -22,13 +23,10 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const session = await getSession();
   if (!session) {
-    return NextResponse.json({ error: "Sign in required." }, { status: 401 });
+    return apiError("authentication_error", 401, "Sign in required.");
   }
   if (!canManageRoles(session.role)) {
-    return NextResponse.json(
-      { error: "Only an owner or admin can export the workspace." },
-      { status: 403 },
-    );
+    return apiError("permission_error", 403, "Only an owner or admin can export the workspace.");
   }
 
   try {
@@ -45,9 +43,6 @@ export async function GET() {
     });
   } catch (err) {
     console.error("[export] workspace export failed:", err);
-    return NextResponse.json(
-      { error: "Could not build the workspace export." },
-      { status: 500 },
-    );
+    return apiError("internal_error", 500, "Could not build the workspace export.");
   }
 }

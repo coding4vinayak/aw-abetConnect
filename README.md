@@ -436,7 +436,7 @@ which is `typecheck`, `lint`, and:
   environment variable the README tells you to set is read by something.
 - **`check:access`** builds a throwaway database by running `prisma migrate deploy`
   against the committed migrations — the same command the deploy below runs — and then
-  asserts 168 things about roles, invitations and the export: the whole grant matrix,
+  asserts 169 things about roles, invitations and the export: the whole grant matrix,
   the properties an invitation link is supposed to have, an expired link, a revoked
   link, a link redeemed twice in the same instant, one workspace reaching for
   another's seats, whether the request handlers still call these rules instead of
