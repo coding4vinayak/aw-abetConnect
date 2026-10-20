@@ -278,6 +278,34 @@ export function renderTrialEndedEmail(data: {
 }
 
 /**
+ * The warning before the first charge. Stripe's `trial_will_end` event is the
+ * clock: it fires three days out, so this mail needs no scheduler — which is
+ * exactly what makes it possible in an app with no job queue.
+ */
+export function renderTrialEndingEmail(data: {
+  product: string;
+  name: string | null;
+  daysLeft: number;
+  /** The caller only reaches this once the row carries a future date; a countdown with nothing to count down to is not a warning. */
+  periodEnd: Date;
+  portalUrl: string;
+}): { subject: string; html: string; text: string } {
+  const greeting = data.name ? `Hi ${data.name},` : "Hi,";
+  const dayWord = data.daysLeft === 1 ? "day" : "days";
+  const ends = new Intl.DateTimeFormat("en", { dateStyle: "long" }).format(data.periodEnd);
+  return {
+    subject: `${data.product} — trial ends in ${data.daysLeft} ${dayWord}`,
+    ...layout(
+      data.product,
+      `Your trial runs until ${ends}`,
+      `${greeting} you have ${data.daysLeft} ${dayWord} of full access left, and the first invoice is dated ${ends}. Nothing is charged before then — keep the plan if it earned its place, or cancel from the billing portal any time up to that date and you are never billed.`,
+      "Billing portal",
+      data.portalUrl,
+    ),
+  };
+}
+
+/**
  * Dunning. A declined card that nobody mentions is churn in slow motion: the
  * buyer thinks everything is fine until access stops. This email goes out on
  * every invoice.payment_failed that leaves the subscription in a dunning

@@ -1,11 +1,12 @@
 /**
  * What abetConnect tells its customers about their billing.
  *
- * Five mails, each driven by an event this app has already committed: the
+ * Six mails, each driven by an event this app has already committed: the
  * trial-started note (or receipt, when a checkout is charged immediately)
- * after checkout, the dunning notice when a payment fails, the all-clear when
- * it recovers, the note when a trial converts to a paid plan, and the
- * confirmation when a subscription ends.
+ * after checkout, the warning three days before the trial converts, the
+ * dunning notice when a payment fails, the all-clear when it recovers, the
+ * note when a trial converts to a paid plan, and the confirmation when a
+ * subscription ends.
  *
  * Two rules shape every function here:
  *
@@ -35,6 +36,7 @@ import {
   renderPaymentRecoveredEmail,
   renderReceiptEmail,
   renderTrialEndedEmail,
+  renderTrialEndingEmail,
 } from "./email";
 
 /**
@@ -162,6 +164,35 @@ export async function sendTrialEnded(workspaceId: string, periodEnd: Date | null
     await getEmailSender().send(owner.user.email, subject, html, plain);
   } catch (error) {
     console.error("[billing] trial-ended mail not sent:", error);
+  }
+}
+
+/**
+ * Stripe's three-day warning, and the only chance to stop a charge on a
+ * workspace that has not been back. The event says a trial is ending; the row
+ * says whether that is still true — a warning delivered after a conversion or
+ * cancellation must not claim a countdown that no longer exists.
+ */
+export async function sendTrialEnding(workspaceId: string) {
+  try {
+    const subscription = await db.subscription.findUnique({ where: { workspaceId } });
+    if (!subscription || subscription.status !== "trialing") return;
+    const periodEnd = subscription.stripeCurrentPeriodEnd;
+    if (!periodEnd) return;
+    const daysLeft = Math.ceil((periodEnd.getTime() - Date.now()) / 86_400_000);
+    if (daysLeft < 1 || daysLeft > 3) return;
+    const owner = await ownerOf(workspaceId);
+    if (!owner) return;
+    const { subject, html, text: plain } = renderTrialEndingEmail({
+      product: productName(),
+      name: owner.user.name,
+      daysLeft,
+      periodEnd,
+      portalUrl: `${appBaseUrl()}/members`,
+    });
+    await getEmailSender().send(owner.user.email, subject, html, plain);
+  } catch (error) {
+    console.error("[billing] trial-ending mail not sent:", error);
   }
 }
 

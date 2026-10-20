@@ -16,6 +16,7 @@ import {
   renderPaymentRecoveredEmail,
   renderReceiptEmail,
   renderTrialEndedEmail,
+  renderTrialEndingEmail,
   renderVerificationEmail,
   setEmailSender,
   verificationEnforced,
@@ -90,6 +91,20 @@ describe("the billing templates say the event, and link home", () => {
       portalUrl: "https://connect.test/members",
     });
     assert.match(subject, /trial is now a paid plan/);
+    assert.match(text, /Billing portal: https:\/\/connect\.test\/members/);
+  });
+
+  it("the three-day warning says when the charge lands and how to avoid it", () => {
+    const { subject, text } = renderTrialEndingEmail({
+      product: "abetConnect",
+      name: "Ada",
+      daysLeft: 3,
+      periodEnd: new Date("2026-11-02T00:00:00Z"),
+      portalUrl: "https://connect.test/members",
+    });
+    assert.match(subject, /trial ends in 3 days/);
+    assert.match(text, /first invoice is dated/);
+    assert.match(text, /cancel from the billing portal/i);
     assert.match(text, /Billing portal: https:\/\/connect\.test\/members/);
   });
 
