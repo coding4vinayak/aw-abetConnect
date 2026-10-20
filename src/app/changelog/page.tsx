@@ -16,6 +16,15 @@ export default function Page() {
         <div className="mt-8 space-y-8 border-l-2 border-blue-600 pl-6">
           <div>
             <p className="text-sm text-muted">October 2026</p>
+            <h2 className="text-lg font-bold">v1.0.2 — Your data leaves with you</h2>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
+              <li>Owners and admins can download the whole workspace — contacts, conversations, messages, score signals, drafts, team, invitations and webhook settings — as one JSON file from Team → Your data.</li>
+              <li>Credentials and billing are deliberately excluded: no passwords, sessions, API keys, invitation links, webhook signing secrets or Stripe ids.</li>
+              <li>The pricing FAQ, terms and privacy page now point at the real export door.</li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-sm text-muted">October 2026</p>
             <h2 className="text-lg font-bold">v1.0.1 — Seats that match the team</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
               <li>Per-agent billing now bills every member and every live invitation at checkout — the team page shows the paid count, and the billing portal is where seats go up or down.</li>

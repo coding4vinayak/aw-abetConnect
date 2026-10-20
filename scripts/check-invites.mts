@@ -122,6 +122,7 @@ const {
 } = await import("../src/lib/invites");
 const { editSeat, REMOVE, seatSummary, seatUsage } = await import("../src/lib/seats");
 const { syncSubscriptionFromStripe } = await import("../src/lib/stripe");
+const { buildWorkspaceExport, EXPORT_FORMAT, EXPORT_VERSION } = await import("../src/lib/export");
 
 /**
  * Fixtures.
@@ -720,6 +721,198 @@ try {
   const againErin = unwrap("re-invite a removed seat", await issue("erin@acme.test", "MEMBER"));
   accepts("and the new link works", await acceptInvite({ token: againErin.token, userId: erin.id }));
   eq("back in as a member", (await seatOf(erin.id))?.role, "MEMBER");
+
+  // -------------------------------------------------------------------------
+  // 5b. The export door
+  //
+  // The pricing FAQ, terms and privacy page all promise the buyer can export the
+  // workspace. That promise used to have no implementation behind it. These rows
+  // prove the document carries all of the content, nothing of the credentials, and
+  // only the caller's workspace.
+  // -------------------------------------------------------------------------
+
+  const exportOwner = await owned("owner@export.test", "Export Studio");
+  const exportMember = await makeUser("member@export.test");
+  await makeSeat(exportMember.id, exportOwner.workspace.id, "MEMBER");
+
+  const exportContact = await db.contact.create({
+    data: {
+      workspaceId: exportOwner.workspace.id,
+      name: "Ada Buyer",
+      email: "ada@buyer.test",
+      phone: "+15555550123",
+      company: "Buyer Co",
+      title: "VP Sales",
+      seniority: "VP",
+    },
+  });
+  const exportThread = await db.thread.create({
+    data: {
+      workspaceId: exportOwner.workspace.id,
+      contactId: exportContact.id,
+      subject: "Pricing for twenty seats",
+      channel: "EMAIL",
+      channels: "EMAIL,SLACK",
+      score: 88,
+      bucket: "HOT",
+      scoreReason: "Asked for pricing",
+      intent: "PRICING",
+      status: "OPEN",
+      awaitingReply: true,
+    },
+  });
+  await db.message.create({
+    data: {
+      threadId: exportThread.id,
+      direction: "INBOUND",
+      channel: "EMAIL",
+      body: "Can you do twenty seats?",
+      externalId: "sim-export-1",
+      raw: JSON.stringify({ provider: "sim", messageId: "sim-export-1" }),
+    },
+  });
+  await db.signal.create({
+    data: {
+      threadId: exportThread.id,
+      kind: "BUYING_INTENT",
+      label: "Asked for pricing",
+      weight: 25,
+      evidence: "Can you do twenty seats?",
+    },
+  });
+  await db.draft.create({
+    data: {
+      threadId: exportThread.id,
+      body: "Yes — here is the twenty-seat plan.",
+      generatedBy: "sim-llm",
+      intent: "PRICING",
+      status: "SUGGESTED",
+    },
+  });
+  await db.webhookEndpoint.create({
+    data: {
+      workspaceId: exportOwner.workspace.id,
+      url: "https://hooks.buyer.test/abetconnect",
+      events: "thread.created,message.created",
+      secret: "whsec_export_must_not_leak",
+    },
+  });
+  await db.invite.create({
+    data: {
+      workspaceId: exportOwner.workspace.id,
+      email: "pending@export.test",
+      role: "MEMBER",
+      tokenHash: "export-invite-hash-must-not-leak",
+      createdById: exportOwner.user.id,
+      expiresAt: new Date(Date.now() + 86_400_000),
+    },
+  });
+
+  // A second workspace with real content makes the isolation claim observable:
+  // a missing filter would pull these rows into the first buyer's download.
+  const exportRival = await owned("owner@export-rival.test", "Rival Export");
+  const rivalContact = await db.contact.create({
+    data: {
+      workspaceId: exportRival.workspace.id,
+      name: "Rival Buyer",
+      email: "rival@elsewhere.test",
+    },
+  });
+  const rivalThread = await db.thread.create({
+    data: {
+      workspaceId: exportRival.workspace.id,
+      contactId: rivalContact.id,
+      subject: "Rival conversation",
+      channel: "EMAIL",
+    },
+  });
+  await db.message.create({
+    data: {
+      threadId: rivalThread.id,
+      direction: "INBOUND",
+      channel: "EMAIL",
+      body: "This must not cross workspaces.",
+    },
+  });
+
+  const exported = await buildWorkspaceExport(
+    exportOwner.workspace.id,
+    new Date("2026-10-20T12:00:00.000Z"),
+  );
+  eq("the export names its format", exported.format, EXPORT_FORMAT);
+  eq("…and its version", exported.version, EXPORT_VERSION);
+  eq("…and when it was taken", exported.exportedAt, "2026-10-20T12:00:00.000Z");
+  eq(
+    "it counts every content section",
+    JSON.stringify(exported.counts),
+    JSON.stringify({
+      members: 2,
+      invitations: 1,
+      contacts: 1,
+      threads: 1,
+      messages: 1,
+      signals: 1,
+      drafts: 1,
+      webhooks: 1,
+    }),
+  );
+  eq("the contact is the real row", exported.contacts[0]?.email, "ada@buyer.test");
+  eq("the thread keeps its score and reason", exported.threads[0]?.score, 88);
+  eq("the message keeps its raw provider payload", exported.messages[0]?.raw?.includes("sim-export-1"), true);
+  eq("the signal keeps its evidence", exported.signals[0]?.evidence, "Can you do twenty seats?");
+  eq("the draft is included", exported.drafts[0]?.body, "Yes — here is the twenty-seat plan.");
+  eq("the webhook destination is included", exported.webhooks[0]?.url, "https://hooks.buyer.test/abetconnect");
+  eq("the pending invitation is included", exported.invitations[0]?.email, "pending@export.test");
+  ok("the team seats are included", exported.members.some((member) => member.user.email === "member@export.test"));
+
+  const exportJson = JSON.stringify(exported);
+  ok(
+    "no password digest is in the download",
+    !exportJson.includes("passwordHash") && !exportJson.includes("placeholder-not-a-real-digest"),
+  );
+  ok(
+    "no invitation token hash is in the download",
+    !exportJson.includes("tokenHash") && !exportJson.includes("export-invite-hash-must-not-leak"),
+  );
+  ok(
+    "no webhook signing secret is in the download",
+    !/secret/i.test(exportJson) && !exportJson.includes("whsec_export_must_not_leak"),
+  );
+  ok(
+    "no API-key material or session identifier is in the download",
+    !exportJson.includes("apiKey") && !exportJson.includes("hashedKey") && !exportJson.includes("session"),
+  );
+  ok("no Stripe identifier is in the download", !/stripe/i.test(exportJson));
+  ok(
+    "another workspace's contact is not in the download",
+    !exportJson.includes("rival@elsewhere.test"),
+  );
+  ok(
+    "…nor its conversation",
+    !exportJson.includes("This must not cross workspaces.") && !exported.threads.some((t) => t.id === rivalThread.id),
+  );
+
+  const exportRoute = source("src/app/api/export/route.ts");
+  ok("the export route needs a session", exportRoute.includes("getSession()"));
+  ok("…and takes the workspace from that session, not the URL", exportRoute.includes("session.workspaceId") && !exportRoute.includes("searchParams"));
+  ok("only an owner or admin may take the export", exportRoute.includes("canManageRoles(session.role)"));
+  ok("the response is a download, not a rendered page", exportRoute.includes("content-disposition") && exportRoute.includes("attachment;"));
+  ok("a shared proxy must not cache a workspace export", exportRoute.includes("no-store"));
+  const exportLib = source("src/lib/export.ts");
+  ok(
+    "messages, signals and drafts are scoped through the thread's workspace",
+    (exportLib.match(/where: \{ thread: \{ workspaceId \} \}/g) ?? []).length === 3,
+  );
+  ok(
+    "the serializer asks for no credential columns",
+    !/passwordHash\s*:\s*true/.test(exportLib) &&
+      !/tokenHash\s*:\s*true/.test(exportLib) &&
+      !/secret\s*:\s*true/.test(exportLib),
+  );
+  ok(
+    "the team screen has the download door",
+    source("src/app/members/page.tsx").includes('href="/api/export"'),
+  );
 
   // -------------------------------------------------------------------------
   // 6. The guards actually use these rules

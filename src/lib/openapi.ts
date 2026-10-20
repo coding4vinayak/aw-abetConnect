@@ -540,10 +540,33 @@ const paths: Record<string, Schema> = {
     },
   },
 
+  "/api/export": {
+    get: {
+      operationId: "exportWorkspace",
+      summary: "Download the whole workspace as JSON",
+      description:
+        "Session-gated (browser owner or admin, not an API key). Returns one " +
+        "`application/json` attachment containing every contact, conversation, " +
+        "message, score signal, draft, team seat, pending invitation and webhook " +
+        "destination in the workspace. Password digests, session tokens, API-key " +
+        "hashes, invitation token hashes, webhook signing secrets and Stripe " +
+        "identifiers are deliberately absent. The response is `no-store`; a " +
+        "shared proxy must not cache one buyer's data.",
+      security: [{ sessionCookie: [] }],
+      responses: {
+        200: ok("The workspace export", { type: "object" }),
+        401: fails("No session"),
+        403: fails("The session is a member, not an owner or admin"),
+        500: fails("The export could not be built"),
+      },
+    },
+  },
+
   "/api/billing/checkout": {
     post: {
       operationId: "createBillingCheckout",
       summary: "Start a Stripe Checkout subscription",
+      security: [{ sessionCookie: [] }],
       description:
         "Session-gated (browser buyer, not an API key). Returns the Stripe-hosted " +
         "URL to redirect to. Prices live in Stripe; the workspace is stamped on " +
@@ -573,6 +596,7 @@ const paths: Record<string, Schema> = {
     post: {
       operationId: "createBillingPortal",
       summary: "Open the Stripe Customer Portal",
+      security: [{ sessionCookie: [] }],
       description:
         "Session-gated. Plan changes, payment-method updates, and cancellation " +
         "happen on Stripe's hosted page; the webhook syncs the outcome back. " +
@@ -842,7 +866,10 @@ export const openapiSpec = {
       "sees another tenant's threads.\n\n" +
       "A second kind exists for browser code: `abc_pub_`, a publishable key, reaches " +
       "`POST /api/v1/messages` and nothing else. Anywhere else it is refused with 403 " +
-      "`permission_error`, which is the whole reason it is safe to put in a page.",
+      "`permission_error`, which is the whole reason it is safe to put in a page.\n\n" +
+      "Three browser-only doors — checkout, the billing portal and the workspace export — " +
+      "use the dashboard's session cookie instead, and are marked with that scheme. They " +
+      "are not reachable with an API key.",
     // No termsOfService or contact block: neither repo documents a terms page or a
     // support address, and a spec that publishes a URL nobody owns is the same
     // mistake as a parameter the route never reads.
@@ -893,6 +920,15 @@ export const openapiSpec = {
           "Only accepted on channel webhook endpoints, where the provider controls the " +
           "request. Prefer a header: query strings are logged by every proxy between here " +
           "and there.",
+      },
+      sessionCookie: {
+        type: "apiKey",
+        in: "cookie",
+        name: "abetconnect_session",
+        description:
+          "The dashboard's browser session, minted by sign-in and stored httpOnly. It is " +
+          "not an API credential: it reaches the three browser-only doors above and no " +
+          "`/api/v1` operation.",
       },
     },
     schemas,
