@@ -16,6 +16,14 @@ export default function Page() {
         <div className="mt-8 space-y-8 border-l-2 border-blue-600 pl-6">
           <div>
             <p className="text-sm text-muted">October 2026</p>
+            <h2 className="text-lg font-bold">v1.1.0 — See the queue work</h2>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
+              <li>An empty workspace can load a sample inbox in one click: six example conversations scored by the same engine a real message goes through, so the ranking and the reasons are the product's own — a cancellation threat at the top, a real enquiry next, a marketing blast at the floor.</li>
+              <li>The sample is unmistakably example data (every address is on <code>example.com</code>) and one click removes it again: the example conversations and their threads, and nothing else.</li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-sm text-muted">October 2026</p>
             <h2 className="text-lg font-bold">v1.0.2 — Your data leaves with you</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
               <li>Owners and admins can download the whole workspace — contacts, conversations, messages, score signals, drafts, team, invitations and webhook settings — as one JSON file from Team → Your data.</li>
