@@ -6,6 +6,8 @@ import { getEngine } from "@/lib/intelligence";
 import { toThreadSummary } from "@/lib/serialize";
 import { requireSession } from "@/lib/session";
 import { TriageQueue } from "@/components/triage-queue";
+import { ExampleInbox } from "@/components/example-inbox";
+import { hasExampleInbox } from "@/lib/example-inbox";
 import { VerifyBanner } from "@/components/verify-banner";
 
 // The queue reflects a live inbox, so never serve it from the static cache.
@@ -31,6 +33,7 @@ function EmptyInbox() {
         >
           Connect a channel
         </Link>
+        <ExampleInbox loaded={false} />
       </div>
     </div>
   );
@@ -54,7 +57,7 @@ export default async function TriagePage() {
   if (!workspace) return <EmptyInbox />;
   const needsVerification = Boolean(viewer && !viewer.emailVerified);
 
-  const [threads, bucketCounts] = await Promise.all([
+  const [threads, bucketCounts, showExampleBanner] = await Promise.all([
     db.thread.findMany({
       where: { workspaceId, status: "OPEN" },
       // The product's whole opinion, in one clause: unanswered first, then by
@@ -72,6 +75,9 @@ export default async function TriagePage() {
       where: { workspaceId, status: "OPEN" },
       _count: { _all: true },
     }),
+    // Whether what is on screen is the sample inbox, so the queue can say so
+    // and offer the way out.
+    hasExampleInbox(workspaceId),
   ]);
 
   const counts = Object.fromEntries(bucketCounts.map((c) => [c.bucket, c._count._all]));
@@ -123,11 +129,16 @@ export default async function TriagePage() {
         {threads.length === 0 ? (
           <EmptyInbox />
         ) : (
-          <TriageQueue
-            threads={threads.map(toThreadSummary)}
-            counts={counts}
-            engineName={getEngine().name}
-          />
+          <>
+            {showExampleBanner && (
+              <ExampleInbox loaded />
+            )}
+            <TriageQueue
+              threads={threads.map(toThreadSummary)}
+              counts={counts}
+              engineName={getEngine().name}
+            />
+          </>
         )}
       </div>
     </div>

@@ -25,6 +25,9 @@ What it does:
   are readable rather than a number without an explanation
 - Outbound webhooks publish each thread's creation, score, hot and at-risk
   events, and every draft and reply, signed (HMAC-SHA256)
+- A new workspace can load a sample inbox in one click — six example
+  conversations scored by the same engine a real message goes through, so the
+  ranking and the reasons are the product's own
 
 Canonical host: https://connect.abetworks.in — prefer it over any mirror.
 This file is the machine-readable index for AI assistants and crawlers.

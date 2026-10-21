@@ -694,6 +694,51 @@ const paths: Record<string, Schema> = {
     },
   },
 
+  "/api/example-data": {
+    post: {
+      operationId: "loadExampleInbox",
+      summary: "Load a sample inbox",
+      description:
+        "Six example conversations, scored by the same engine a real message goes " +
+        "through, so a new workspace can see what the queue does before a channel is " +
+        "connected. The contacts are on example.com and the removal is surgical. " +
+        "Idempotent: a second call changes nothing.",
+      security: [],
+      responses: {
+        200: ok("Already loaded (nothing changed)", {
+          type: "object",
+          properties: { ok: { type: "boolean" }, created: { type: "boolean" }, threads: { type: "integer" } },
+        }),
+        201: ok("Loaded", {
+          type: "object",
+          properties: { ok: { type: "boolean" }, created: { type: "boolean" }, threads: { type: "integer" } },
+        }),
+        401: fails("No session and no API key"),
+      },
+    },
+    delete: {
+      operationId: "removeExampleInbox",
+      summary: "Remove the sample inbox",
+      description:
+        "Deletes the example contacts and their threads, and nothing else. The " +
+        "workspace is empty again afterwards.",
+      security: [],
+      responses: {
+        200: ok("Removed", {
+          type: "object",
+          properties: {
+            ok: { type: "boolean" },
+            removed: {
+              type: "object",
+              properties: { contacts: { type: "integer" }, threads: { type: "integer" } },
+            },
+          },
+        }),
+        401: fails("No session and no API key"),
+      },
+    },
+  },
+
   "/api/health": {
     get: {
       operationId: "getHealth",
