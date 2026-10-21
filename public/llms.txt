@@ -21,6 +21,10 @@ What it does:
   40-seat enquiry ranks 100, a marketing blast ranks at the floor)
 - Surfaces churn risks before the customer cancels
 - One inbox across your channels; priced per agent
+- Drafts a reply to the message that scored highest, and the score's reasons
+  are readable rather than a number without an explanation
+- Outbound webhooks publish each thread's creation, score, hot and at-risk
+  events, and every draft and reply, signed (HMAC-SHA256)
 
 Canonical host: https://connect.abetworks.in — prefer it over any mirror.
 This file is the machine-readable index for AI assistants and crawlers.
