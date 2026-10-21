@@ -128,6 +128,28 @@ as the fallback if the model is slow, down, rate-limited or returns a malformed
 shape. Triage never fails closed — an inbox that stops sorting is worse than one
 sorted slightly less well.
 
+## The first run: a sample inbox
+
+A workspace with no messages has nothing to rank, so the product's whole
+opinion — a cancellation threat at the top, a real enquiry next, a marketing
+blast at the floor — is invisible until a channel is connected. The empty queue
+therefore offers one click:
+
+```
+POST   /api/example-data                   # load a sample inbox (session or key)
+DELETE /api/example-data                   # remove the sample inbox, and only it
+```
+
+Six example conversations, scored by **the same engine a real message goes
+through** (`ingestMessage`, per-channel normalisation) — so the ranking on screen
+is the ranking the product would give, with the same reasons attached. Nothing in
+the sample writes a score.
+
+The contacts are on `example.com` (RFC 2606 reserves it for exactly this), so a
+sample conversation can never be mistaken for a real one, and the removal is
+surgical: the example contacts and their threads, and nothing else. Loading twice
+changes nothing.
+
 ## API
 
 ```
@@ -147,6 +169,8 @@ PATCH  /api/v1/webhooks/{id}               # move, re-scope, or silence one
 DELETE /api/v1/webhooks/{id}               # unsubscribe
 GET    /api/v1/openapi                     # this contract, as OpenAPI 3.1
 GET    /api/health                         # liveness probe, no key: {ok, db, time}
+POST   /api/example-data                   # load a sample inbox (session or key)
+DELETE /api/example-data                   # remove the sample inbox, and only it
 POST   /api/auth/send-verification         # resend verification email (session required)
 GET    /api/auth/verify-email              # consume verification token (public)
 POST   /api/auth/forgot-password           # request password reset (public, no enumeration)
