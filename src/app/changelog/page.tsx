@@ -18,7 +18,7 @@ export default function Page() {
             <p className="text-sm text-muted">October 2026</p>
             <h2 className="text-lg font-bold">v1.1.0 — See the queue work</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
-              <li>An empty workspace can load a sample inbox in one click: six example conversations scored by the same engine a real message goes through, so the ranking and the reasons are the product's own — a cancellation threat at the top, a real enquiry next, a marketing blast at the floor.</li>
+              <li>An empty workspace can load a sample inbox in one click: six example conversations scored by the same engine a real message goes through, so the ranking and the reasons are the product&apos;s own — a cancellation threat at the top, a real enquiry next, a marketing blast at the floor.</li>
               <li>The sample is unmistakably example data (every address is on <code>example.com</code>) and one click removes it again: the example conversations and their threads, and nothing else.</li>
             </ul>
           </div>
