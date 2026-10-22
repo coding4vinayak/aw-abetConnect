@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AuthForm } from "@/components/auth-form";
 import { SiteFooter } from "@/components/site";
@@ -26,6 +27,14 @@ export default async function LoginPage() {
         </div>
 
         <AuthForm mode="login" />
+
+        <p className="mt-4 text-center text-[12px] leading-relaxed text-muted">
+          Just looking?{" "}
+          <Link href="/?workspace=demo" className="text-foreground underline underline-offset-2">
+            Open the live demo
+          </Link>{" "}
+          — the example conversations, scored by the real engine.
+        </p>
       </div>
     </main>
     <SiteFooter />

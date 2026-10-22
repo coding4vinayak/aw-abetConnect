@@ -21,7 +21,7 @@ export default function Page() {
         </div>
         <h2 className="mt-10 text-xl font-bold">Before you write in</h2>
         <div className="mt-4 space-y-4">
-          <div><p className="font-semibold text-foreground">The demo workspace looks empty</p><p className="mt-1 text-muted">Seed it (<code>npm run db:seed</code> in the repo) or pass <code>?workspace=&lt;slug&gt;</code> to point at your own data.</p></div>
+          <div><p className="font-semibold text-foreground">The demo workspace looks empty</p><p className="mt-1 text-muted">It is seeded on deploy; on your own machine, run <code>npm run seed</code> in the repo. The demo lives at <code>/?workspace=demo</code> and needs no account — if that link is empty, tell us and we will re-seed it.</p></div>
           <div><p className="font-semibold text-foreground">API returns 401</p><p className="mt-1 text-muted">Keys are shown once at mint time. Check the prefix, re-mint if lost, and confirm the key carries the scope the endpoint needs.</p></div>
           <div><p className="font-semibold text-foreground">API returns 429</p><p className="mt-1 text-muted">You hit the per-minute quota. Back off per the <code>retry-after</code> header, or ask us to raise the ceiling.</p></div>
           <div><p className="font-semibold text-foreground">Something looks wrong in the data</p><p className="mt-1 text-muted">Send the workspace slug, the request ID or timestamp, and what you expected. Traces and step logs make these fast to resolve.</p></div>

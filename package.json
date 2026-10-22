@@ -17,8 +17,9 @@
     "check:contract": "tsx scripts/check-contract.mts",
     "check:access": "tsx scripts/check-invites.mts",
     "check:ingest": "tsx scripts/check-ingest.mts",
+    "check:demo": "tsx scripts/check-demo-access.mts",
     "test:unit": "tsx --test tests/unit/*.test.ts",
-    "check": "npm run typecheck && npm run lint && npm run test:unit && npm run check:docs && npm run check:contract && npm run check:access && npm run check:ingest"
+    "check": "npm run typecheck && npm run lint && npm run test:unit && npm run check:docs && npm run check:contract && npm run check:access && npm run check:ingest && npm run check:demo"
   },
   "prisma": {
     "seed": "tsx --env-file=.env prisma/seed.ts"

@@ -36,4 +36,5 @@ jobs:
       - run: npm run check:contract
       - run: npm run check:access
       - run: npm run check:ingest
+      - run: npm run check:demo
       - run: npm run build

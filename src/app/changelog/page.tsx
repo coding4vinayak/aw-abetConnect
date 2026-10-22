@@ -16,6 +16,15 @@ export default function Page() {
         <div className="mt-8 space-y-8 border-l-2 border-blue-600 pl-6">
           <div>
             <p className="text-sm text-muted">October 2026</p>
+            <h2 className="text-lg font-bold">v1.2.0 — See the demo without an account</h2>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
+              <li>This app has no marketing page — the queue is the front door — so a visitor who was not signed in used to meet a login form and nothing else. Now they meet the demo: the example conversations, scored by the same engine a real message goes through, with a plain note saying which one they are looking at and a way to sign in.</li>
+              <li>The sign-in page offers the same demo, so the promise is where the form is.</li>
+              <li>Nothing else about access changed: another customer&apos;s workspace is still refused rather than served, and a deployment with no demo seeded sends visitors to sign in instead of showing an empty page.</li>
+            </ul>
+          </div>
+          <div>
+            <p className="text-sm text-muted">October 2026</p>
             <h2 className="text-lg font-bold">v1.1.0 — See the queue work</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
               <li>An empty workspace can load a sample inbox in one click: six example conversations scored by the same engine a real message goes through, so the ranking and the reasons are the product&apos;s own — a cancellation threat at the top, a real enquiry next, a marketing blast at the floor.</li>

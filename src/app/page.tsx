@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { verificationEnforced } from "@/lib/email";
 import { getEngine } from "@/lib/intelligence";
 import { toThreadSummary } from "@/lib/serialize";
-import { requireSession } from "@/lib/session";
+import { getSession } from "@/lib/session";
+import { resolveWorkspace } from "@/lib/resolve-workspace";
 import { TriageQueue } from "@/components/triage-queue";
 import { ExampleInbox } from "@/components/example-inbox";
 import { hasExampleInbox } from "@/lib/example-inbox";
@@ -39,18 +40,46 @@ function EmptyInbox() {
   );
 }
 
-export default async function TriagePage() {
-  // Redirects to /login when there is no session, so the rest of this function
-  // can assume an authenticated workspace.
-  const session = await requireSession();
-  const workspaceId = session.workspaceId;
+export default async function TriagePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ workspace?: string }>;
+}) {
+  // One policy, shared with the other four apps: the demo workspace is public,
+  // a customer's own workspace needs a session, and anything else is refused.
+  // This app has no marketing page — the queue is the front door — so a
+  // visitor who is not signed in is shown the demo rather than a login form.
+  const requested = (await searchParams)?.workspace;
+  const resolved = await resolveWorkspace(requested);
+  if (!resolved.workspace) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-6">
+        <div className="max-w-md text-center">
+          <h1 className="text-[15px] font-semibold tracking-tight text-foreground">Sign in to see your queue</h1>
+          <p className="mt-2 text-[12px] leading-relaxed text-muted">
+            One inbox, every channel, ranked by who is most likely to buy. Sign in, or point a channel
+            at your ingest endpoint and watch the first message appear.
+          </p>
+          <Link
+            href="/login"
+            className="mt-4 inline-block rounded-md border border-line px-3 py-1.5 text-[12px] text-foreground transition hover:bg-surface-raised"
+          >
+            Sign in
+          </Link>
+        </div>
+      </div>
+    );
+  }
+  const session = resolved.session;
+  const workspaceId = resolved.workspace.id;
+  const viewingDemo = resolved.via === "demo" || resolved.via === "session-viewing-demo";
 
   const [workspace, viewer] = await Promise.all([
     db.workspace.findUnique({ where: { id: workspaceId } }),
     // Only in the world where the click matters: a deployment with no mail
     // provider never blocks sign-in on verification, so the banner would be
     // advice nobody can act on.
-    verificationEnforced()
+    session && verificationEnforced()
       ? db.user.findUnique({ where: { id: session.userId }, select: { emailVerified: true } })
       : Promise.resolve(null),
   ]);
@@ -98,32 +127,65 @@ export default async function TriagePage() {
               {hot} hot {hot === 1 ? "conversation" : "conversations"}
             </span>
           )}
-          <Link
-            href="/members"
-            className="rounded-md border border-line px-2 py-1 transition hover:bg-surface-raised hover:text-foreground"
-          >
-            Team
-          </Link>
-          <Link
-            href="/integrations"
-            className="rounded-md border border-line px-2 py-1 transition hover:bg-surface-raised hover:text-foreground"
-          >
-            Integrations
-          </Link>
-          <span className="hidden text-muted-dim sm:inline">{session.email}</span>
-          {/* A plain form post: signing out should not need client JavaScript. */}
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="rounded-md border border-line px-2 py-1 transition hover:bg-surface-raised hover:text-foreground"
+          {/* Team and Integrations are doors into a workspace. A visitor who is
+              looking at the demo has no workspace, so the doors stay shut
+              rather than bouncing them to a sign-in form. */}
+          {session && (
+            <>
+              <Link
+                href="/members"
+                className="rounded-md border border-line px-2 py-1 transition hover:bg-surface-raised hover:text-foreground"
+              >
+                Team
+              </Link>
+              <Link
+                href="/integrations"
+                className="rounded-md border border-line px-2 py-1 transition hover:bg-surface-raised hover:text-foreground"
+              >
+                Integrations
+              </Link>
+            </>
+          )}
+          {session ? (
+            <>
+              <span className="hidden text-muted-dim sm:inline">{session.email}</span>
+              {/* A plain form post: signing out should not need client JavaScript. */}
+              <form action={signOut}>
+                <button
+                  type="submit"
+                  className="rounded-md border border-line px-2 py-1 transition hover:bg-surface-raised hover:text-foreground"
+                >
+                  Sign out
+                </button>
+              </form>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="rounded-md bg-foreground px-3 py-1 text-[12px] font-medium text-background transition hover:opacity-90"
             >
-              Sign out
-            </button>
-          </form>
+              Sign in
+            </Link>
+          )}
         </div>
       </header>
 
       {needsVerification && <VerifyBanner />}
+
+      {viewingDemo && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface-raised px-4 py-2 text-[12px] text-muted">
+          <span>
+            <strong className="text-foreground">This is the live demo.</strong> The conversations and
+            the scores are the engine&rsquo;s own — every contact is fictional, and nothing here is
+            a real message.
+          </span>
+          {!session && (
+            <Link href="/login" className="text-foreground underline underline-offset-2">
+              Sign in for your own workspace
+            </Link>
+          )}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1">
         {threads.length === 0 ? (
