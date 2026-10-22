@@ -91,6 +91,26 @@ export default async function Page() {
             <a href="mailto:support@abetworks.in?subject=abetConnect%20enterprise" className="mt-6 block rounded-lg border border-blue-600 px-4 py-2 text-center text-sm font-semibold text-blue-600 hover:bg-blue-50 transition">Talk to us</a>
           </div>
         </div>
+        <h2 className="mt-12 text-xl font-bold">Also in the Abetworks suite</h2>
+        <p className="mt-2 text-gray-600">
+          AbetConnect is one of the products in the Abetworks suite, and every one of them is sold on its own.
+          These are the products that put the conversations in front of the people who act on them — each has its own sign-up, and 
+          <a href="mailto:support@abetworks.in?subject=One%20workspace%20across%20the%20Abetworks%20suite" className="underline">
+            one contract can set up a workspace across all of them
+          </a>
+          .
+        </p>
+        <div className="mt-6 space-y-3">
+          <a href="https://leadgenius.abetworks.in" className="block rounded-2xl border border-gray-200 bg-white p-4 shadow-sm hover:bg-gray-50 transition">
+            <span className="font-semibold text-gray-900">LeadGenius</span> <span className="text-gray-600">— multichannel outreach with warmup and deliverability guardrails, so cold email lands where it should. $29 per user per month.</span>
+          </a>
+          <a href="https://leadworks.abetworks.in" className="block rounded-2xl border border-gray-200 bg-white p-4 shadow-sm hover:bg-gray-50 transition">
+            <span className="font-semibold text-gray-900">LeadWorks</span> <span className="text-gray-600">— lead operations — capture every lead once (duplicates refused at the door), with validation, dedupe and CRM-ready CSV exports. $49 per month.</span>
+          </a>
+          <a href="https://abetagent.abetworks.in" className="block rounded-2xl border border-gray-200 bg-white p-4 shadow-sm hover:bg-gray-50 transition">
+            <span className="font-semibold text-gray-900">AbetAgent</span> <span className="text-gray-600">— agents with citations, step traces and human escalation. $99 per month.</span>
+          </a>
+        </div>
         <h2 className="mt-12 text-xl font-bold">Questions</h2>
         <div className="mt-4 space-y-4">
           <div><p className="font-semibold text-foreground">How are agents counted?</p><p className="mt-1 text-muted">Every member in the workspace, plus every invitation that has not been accepted or expired. Checkout starts on that number, so a pending invitation is already paid for and accepting it does not add a charge. New invitations stop at the paid count until you add seats in the portal.</p></div>
