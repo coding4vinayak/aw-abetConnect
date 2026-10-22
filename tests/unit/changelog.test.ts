@@ -14,7 +14,8 @@ const CHANGELOG = readFileSync(new URL("../../src/app/changelog/page.tsx", impor
 
 const SHIPPED = [
   { feature: "the sample inbox (the first run)", marks: ["sample inbox"] },
-  { feature: "the workspace export", marks: ["one JSON file"] },];
+  { feature: "the workspace export", marks: ["one JSON file"] },
+  { feature: "the public demo at the front door", marks: ["See the demo without an account", "same demo"] },];
 
 test("the changelog mentions every feature the app ships", () => {
   for (const { feature, marks } of SHIPPED) {

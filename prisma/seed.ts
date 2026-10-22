@@ -225,7 +225,7 @@ Operations Lead`,
     demonstrates: "Small inbound lead from a personal address",
     payload: {
       name: "Sofia Almeida",
-      email: "sofia.almeida.work@gmail.com",
+      email: "sofia.almeida.work@example.com",
       formName: "Contact us",
       submittedAt: ago(18),
       message: "Hi, I run a small studio with 3 people. Is there a plan that fits us?",

@@ -26,8 +26,10 @@ npm run dev                 # http://localhost:3000
 
 `npm run seed` prints an API key, the ranked queue the engine produced, and the
 account that owns the demo workspace: `demo@abetconnect.dev` / `demo-password`.
-That is how you get past the login screen. Skipping the seed works too — sign up
-at `/signup` and you get an empty workspace that nobody else can see.
+That account is how you get past the login screen *as the owner* — the demo
+workspace itself is public, so opening `/` (or `/?workspace=demo`) shows the
+seeded conversations without an account at all. Skipping the seed works too —
+sign up at `/signup` and you get an empty workspace that nobody else can see.
 
 ## Screens
 
