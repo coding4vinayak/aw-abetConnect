@@ -3,14 +3,14 @@ import Link from "next/link";
 export function SiteNav() {
   return (
     <header className="sticky top-0 z-10 border-b border-line bg-surface/90 backdrop-blur">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
+      <nav className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3" aria-label="Main navigation">
         <Link href="/" className="text-[15px] font-bold tracking-tight text-foreground">
           abetConnect
         </Link>
         <div className="flex items-center gap-5">
-          <Link href="/pricing" className="text-muted hover:text-foreground text-[13px]">Pricing</Link>
-          <Link href="/support" className="text-muted hover:text-foreground text-[13px]">Support</Link>
-          <Link href="/changelog" className="text-muted hover:text-foreground text-[13px]">Changelog</Link>
+          <Link href="/pricing" className="text-muted hover:text-foreground text-sm">Pricing</Link>
+          <Link href="/support" className="text-muted hover:text-foreground text-sm">Support</Link>
+          <Link href="/changelog" className="text-muted hover:text-foreground text-sm">Changelog</Link>
           <a href="/login" className="rounded-lg bg-blue-600 text-white hover:bg-blue-500 px-4 py-2 text-sm font-semibold transition">
             Sign in
           </a>
@@ -28,7 +28,7 @@ const COLS: [string, [string, string][]][] = [
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-line bg-surface">
+    <footer className="border-t border-line bg-surface" role="contentinfo">
       <div className="mx-auto grid max-w-6xl gap-8 px-6 py-10 sm:grid-cols-4">
         <div>
           <p className="text-[15px] font-bold text-foreground">abetConnect</p>
@@ -41,9 +41,9 @@ export function SiteFooter() {
               {links.map(([label, href]) => (
                 <li key={label}>
                   {href.startsWith("/") ? (
-                    <Link href={href} className="text-muted hover:text-foreground text-[12px]">{label}</Link>
+                    <Link href={href} className="text-muted hover:text-foreground text-sm">{label}</Link>
                   ) : (
-                    <a href={href} className="text-muted hover:text-foreground text-[12px]">{label}</a>
+                    <a href={href} className="text-muted-dim hover:text-foreground text-sm">{label}</a>
                   )}
                 </li>
               ))}

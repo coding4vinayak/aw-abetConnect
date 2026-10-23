@@ -34,6 +34,7 @@ function Field({
   required,
   autoFocus,
   invalid,
+  errorId,
 }: {
   label: string;
   name: string;
@@ -43,13 +44,16 @@ function Field({
   required?: boolean;
   autoFocus?: boolean;
   invalid?: boolean;
+  errorId?: string;
 }) {
+  const fieldId = `field-${name}`;
   return (
-    <label className="block">
+    <label htmlFor={fieldId} className="block">
       <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-muted-dim">
         {label}
       </span>
       <input
+        id={fieldId}
         name={name}
         type={type}
         autoComplete={autoComplete}
@@ -57,20 +61,30 @@ function Field({
         required={required}
         autoFocus={autoFocus}
         aria-invalid={invalid || undefined}
+        aria-describedby={errorId}
         className={`${FIELD_CLASS} ${invalid ? "border-hot" : ""}`}
       />
+      {invalid && errorId && (
+        <p id={errorId} className="mt-1 text-[11px] text-hot" role="alert" aria-live="polite">
+          {errorId}
+        </p>
+      )}
     </label>
   );
 }
 
 export function AuthForm({ mode }: { mode: "signup" | "login" }) {
   const isSignup = mode === "signup";
-  // The action returns validation errors instead of throwing, so the form can
-  // render the message without a full page reload losing what was typed.
   const [state, action] = useActionState(isSignup ? signUp : signIn, INITIAL);
 
+  // Generate unique error IDs for accessibility
+  const nameErrorId = state.field === "name" && state.error ? "name-error" : undefined;
+  const workspaceErrorId = state.field === "workspace" && state.error ? "workspace-error" : undefined;
+  const emailErrorId = state.field === "email" && state.error ? "email-error" : undefined;
+  const passwordErrorId = state.field === "password" && state.error ? "password-error" : undefined;
+
   return (
-    <form action={action} className="space-y-3.5">
+    <form action={action} className="space-y-3.5" noValidate>
       {state.error && (
         <p
           role="alert"
@@ -91,6 +105,7 @@ export function AuthForm({ mode }: { mode: "signup" | "login" }) {
             required
             autoFocus
             invalid={state.field === "name"}
+            errorId={nameErrorId}
           />
           <Field
             label="Team or company"
@@ -99,6 +114,7 @@ export function AuthForm({ mode }: { mode: "signup" | "login" }) {
             autoComplete="organization"
             placeholder="Northwind Logistics"
             invalid={state.field === "workspace"}
+            errorId={workspaceErrorId}
           />
         </>
       )}
@@ -112,6 +128,7 @@ export function AuthForm({ mode }: { mode: "signup" | "login" }) {
         required
         autoFocus={!isSignup}
         invalid={state.field === "email"}
+        errorId={emailErrorId}
       />
       <Field
         label="Password"
@@ -121,6 +138,7 @@ export function AuthForm({ mode }: { mode: "signup" | "login" }) {
         placeholder={isSignup ? "At least 8 characters" : "••••••••"}
         required
         invalid={state.field === "password"}
+        errorId={passwordErrorId}
       />
 
       <SubmitButton label={isSignup ? "Create workspace" : "Sign in"} />
@@ -134,7 +152,7 @@ export function AuthForm({ mode }: { mode: "signup" | "login" }) {
       )}
 
       <p className="pt-1 text-center text-[12px] text-muted-dim">
-        {isSignup ? (
+        {!isSignup ? (
           <>
             Already have an account?{" "}
             <Link href="/login" className="text-foreground underline underline-offset-2">
