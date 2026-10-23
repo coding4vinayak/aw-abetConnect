@@ -113,7 +113,7 @@ export default async function TriagePage({
   const hot = counts.HOT ?? 0;
 
   return (
-    <div className="flex h-full flex-col">
+    <main id="main-content" className="flex h-full flex-col">
       <header className="flex shrink-0 items-center justify-between border-b border-line px-4 py-2.5">
         <div className="flex items-baseline gap-2.5">
           <span className="text-[13px] font-semibold tracking-tight text-foreground">
@@ -203,7 +203,7 @@ export default async function TriagePage({
           </>
         )}
       </div>
-    </div>
+    </main>
   );
 }
 
