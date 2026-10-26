@@ -27,12 +27,12 @@
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
-    "@sentry/nextjs": "^11.8.0",
+    "@sentry/nextjs": "^11.9.0",
     "next": "16.4.2",
     "prisma": "^7.10.1",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "stripe": "^23.0.0"
+    "stripe": "^23.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -41,7 +41,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^10",
-    "eslint-config-next": "16.4.2",
+    "eslint-config-next": "16.4.3",
     "pg": "^8.23.1",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
