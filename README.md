@@ -282,9 +282,14 @@ Every delivery also carries `x-webhook-signature: sha256=<hex>` — the same key
 signed over the raw body alone. That is GitHub's spelling, and what an inbound
 nuCRM plugin webhook (`/api/tenant/plugins/webhook/{id}`) verifies natively, so
 a nuCRM endpoint can subscribe here with this secret and no adapter between the
-products. The body-only digest has no timestamp inside it; receivers that want
-the signed-string replay window should keep verifying the `x-abetconnect-*`
-pair above.
+products. That digest covers the body only, so the same delivery carries the two
+headers a receiver on the other side of it reads: `x-webhook-timestamp` (the
+same seconds value, unsigned — nuCRM's receiver enforces a 5-minute window when
+it is present and skips the check when it is absent, which refuses a stale
+re-send) and `x-webhook-delivery` (the payload `id`, which is inside the signed
+bytes and so cannot be refreshed by a replayer — dedupe on it and a second
+arrival is refused for good). Receivers that want the timestamp inside the
+signed string keep verifying the `x-abetconnect-*` pair above.
 
 **abetConnect never sends messages itself.** `reply.sent` is where your existing
 provider delivers. Owning delivery would mean owning deliverability, compliance

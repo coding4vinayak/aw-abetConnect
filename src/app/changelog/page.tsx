@@ -15,6 +15,14 @@ export default function Page() {
         <p className="mt-2 text-muted">Newest first. Breaking changes are marked <strong>BREAKING</strong> and get 30 days&apos; notice here before they ship.</p>
         <div className="mt-8 space-y-8 border-l-2 border-blue-600 pl-6">
           <div>
+            <p className="text-sm text-muted">November 2026</p>
+            <h2 className="text-lg font-bold">v1.3.1 — Deliveries a CRM can age out and dedupe</h2>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
+              <li>Every webhook delivery now carries <code>x-webhook-timestamp</code> and <code>x-webhook-delivery</code> next to <code>x-webhook-signature</code>. A receiver that enforces a freshness window — nuCRM&apos;s plugin endpoint is the one this was measured against — refuses a stale re-send, and a receiver that remembers delivery ids refuses the second arrival for good.</li>
+              <li>The delivery id in the header is the <code>id</code> inside the signed body, so the value a receiver dedupes on is one a replayer cannot change without breaking the signature. Nothing about the existing <code>x-abetconnect-*</code> pair changed: the bytes signed and the headers already verified stay byte-identical.</li>
+            </ul>
+          </div>
+          <div>
             <p className="text-sm text-muted">October 2026</p>
             <h2 className="text-lg font-bold">v1.3.0 — Also in the Abetworks suite</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
