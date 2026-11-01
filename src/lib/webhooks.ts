@@ -86,10 +86,13 @@ export function signPayload(secret: string, body: string, timestamp: number): st
  * header on the same request, not a replacement: the `x-abetconnect-signature`
  * above stays byte-identical for receivers that already verify it.
  *
- * The generic digest has no timestamp inside it. nuCRM checks freshness only
- * when a delivery carries `x-webhook-timestamp`, and this one does not — which
- * is the right answer for a fire-and-forget sender whose receiver should apply
- * its own replay window (or verify the Stripe-style pair instead).
+ * The generic digest covers the body alone, so nothing in it pins time.
+ * `x-webhook-timestamp` is sent for that reason: nuCRM's plugin receiver
+ * enforces a 5-minute window when the header is present and skips the check
+ * when it is absent, so a stale re-send — a queue redelivery, a retry that
+ * replays stored headers — is refused instead of accepted a second time.
+ * Receivers that want the timestamp inside the signed string keep verifying
+ * the `x-abetconnect-*` pair above.
  */
 export function signBody(secret: string, body: string): string {
   return createHmac("sha256", secret).update(body).digest("hex");
@@ -179,6 +182,17 @@ export async function dispatch(
             // The body-only digest under the generic name — what a nuCRM
             // plugin webhook verifies natively. See signBody.
             "x-webhook-signature": `sha256=${signBody(endpoint.secret, body)}`,
+            // Two headers a nuCRM-side receiver reads, in addition to the
+            // digest above. Freshness: the plugin receiver applies a 5-minute
+            // window when `x-webhook-timestamp` is present and skips the check
+            // when it is absent, so a stale re-send is refused. It is not
+            // inside the signed string — a replayer could refresh it — so it
+            // is not the replay defense. `x-webhook-delivery` is: it carries
+            // the payload `id`, which is inside the body and therefore cannot
+            // be changed without breaking the signature, so a receiver that
+            // remembers delivery ids rejects the second arrival for good.
+            "x-webhook-timestamp": String(timestamp),
+            "x-webhook-delivery": id,
           },
           body,
           signal: controller.signal,

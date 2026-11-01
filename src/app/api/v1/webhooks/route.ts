@@ -37,7 +37,9 @@ export async function GET(request: Request) {
  * again — verify deliveries with HMAC-SHA256 over `{timestamp}.{body}`, both sent
  * as headers (`x-abetconnect-timestamp`, `x-abetconnect-signature`). Deliveries
  * also carry `x-webhook-signature: sha256=<hex HMAC(secret, rawBody)>`, the
- * generic spelling a nuCRM plugin webhook verifies natively.
+ * generic spelling a nuCRM plugin webhook verifies natively, plus
+ * `x-webhook-timestamp` and `x-webhook-delivery` for the freshness and dedupe
+ * checks that receiver makes.
  */
 export async function POST(request: Request) {
   try {
