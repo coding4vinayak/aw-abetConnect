@@ -239,7 +239,9 @@ const schemas: Record<string, Schema> = {
       "`${x-abetconnect-timestamp}.${rawBody}`, compared against x-abetconnect-signature, " +
       "and reject deliveries whose timestamp is older than you are willing to replay. " +
       "The same delivery also carries `x-webhook-signature: sha256=<hex HMAC(secret, rawBody)>` — " +
-      "the body-only generic spelling a nuCRM plugin webhook verifies natively.",
+      "the body-only generic spelling a nuCRM plugin webhook verifies natively — plus " +
+      "`x-webhook-timestamp` (the same seconds value, for a receiver that enforces a freshness " +
+      "window) and `x-webhook-delivery` (this delivery's `id`, for a receiver that dedupes).",
     properties: {
       id: {
         type: "string",

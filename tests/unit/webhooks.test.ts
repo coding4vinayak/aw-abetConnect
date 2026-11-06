@@ -93,3 +93,34 @@ describe("egress guards", () => {
     );
   });
 });
+
+// The nuCRM-facing half of a delivery, pinned at the source: a receiver on
+// `/api/tenant/plugins/webhook/{id}` verifies the body-only digest, then reads
+// `x-webhook-timestamp` for freshness and `x-webhook-delivery` for dedupe. All
+// three are separate header lines, so all three can be dropped by one edit that
+// still typechecks and still passes every other test here. The values matter as
+// much as their presence — a freshness header that disagrees with the payload's
+// own `timestamp`, or a delivery id that is not the one inside the signed body,
+// is a header a receiver trusts and a sender has to explain.
+describe("the headers a nuCRM receiver reads", () => {
+  const sender = readFileSync(join(process.cwd(), "src/lib/webhooks.ts"), "utf8");
+
+  it("every delivery carries the generic digest, the freshness value and the delivery id", () => {
+    assert.match(sender, /"x-webhook-signature": `sha256=\$\{signBody\(endpoint\.secret, body\)\}`/, "the body-only spelling");
+    assert.match(sender, /"x-webhook-timestamp": String\(timestamp\)/, "the seconds value, same one the family pair signs");
+    assert.match(sender, /"x-webhook-delivery": id/, "the payload id, inside the signed bytes");
+  });
+
+  it("one timestamp, one id, one stringify serve the body and the headers", () => {
+    assert.match(sender, /const timestamp = Math\.floor\(Date\.now\(\) \/ 1000\);/);
+    assert.equal(
+      (sender.match(/Date\.now\(\)/g) ?? []).length,
+      1,
+      "a second Date.now() for a header would disagree with the timestamp inside the body",
+    );
+    assert.match(sender, /const body = JSON\.stringify\(\{ id, event, timestamp, data \}\);/);
+    const bodyAt = sender.indexOf("const body = JSON.stringify(");
+    const fetchAt = sender.indexOf("const res = await fetch(");
+    assert.ok(bodyAt !== -1 && bodyAt < fetchAt, "stringify once, then send those exact bytes");
+  });
+});
